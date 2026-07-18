@@ -9,6 +9,7 @@
 ---@field max_context_file_lines integer Line cap for @file mention expansion
 ---@field editor_context boolean Attach compact editor state to every prompt
 ---@field keymaps boolean Register the default <leader>a… keymaps
+---@field working_messages string[] Spinner verbs shown while the agent runs
 local M = {}
 
 --- Absolute path of the repo root, derived from this file's location.
@@ -30,6 +31,18 @@ function M.defaults()
     max_context_file_lines = 200,
     editor_context = true,
     keymaps = true,
+    working_messages = {
+      "Loading",
+      "Thinking",
+      "Pondering",
+      "Cooking",
+      "Crunching",
+      "Brewing",
+      "Cogitating",
+      "Tinkering",
+      "Ruminating",
+      "Forging",
+    },
   }
 end
 
@@ -59,6 +72,8 @@ function M.validate(cfg)
   expect("max_context_file_lines", cfg.max_context_file_lines, "number")
   expect("editor_context", cfg.editor_context, "boolean")
   expect("keymaps", cfg.keymaps, "boolean")
+  expect("working_messages", cfg.working_messages, "table")
+  if #cfg.working_messages == 0 then error("pi_nvim config: working_messages must not be empty", 3) end
 end
 
 return M

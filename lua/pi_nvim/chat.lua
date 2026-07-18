@@ -12,7 +12,7 @@ local M = {
   style_ns = vim.api.nvim_create_namespace "pi_nvim_style",
   ---@type PiNvimConfig|nil
   _cfg = nil,
-  _spinner = { timer = nil, frame = 1, mark = nil },
+  _spinner = { timer = nil, frame = 1, mark = nil, message = nil },
   ---@type { lnum: integer, lines: integer }|nil
   _thinking = nil,
 }
@@ -20,6 +20,7 @@ local M = {
 ---@param cfg PiNvimConfig
 function M.setup(cfg)
   M._cfg = cfg
+  math.randomseed(os.time())
   vim.api.nvim_set_hl(0, "PiNvimUserHeader", { link = "Title", default = true })
   vim.api.nvim_set_hl(0, "PiNvimPiHeader", { link = "Special", default = true })
   vim.api.nvim_set_hl(0, "PiNvimTool", { link = "Statement", default = true })
@@ -209,6 +210,8 @@ local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧",
 function M.start_spinner()
   if M._spinner.timer then return end
   M.ensure_buf()
+  local messages = M._cfg.working_messages
+  M._spinner.message = messages[math.random(#messages)]
   local timer = vim.uv.new_timer()
   M._spinner.timer = timer
   timer:start(0, 90, vim.schedule_wrap(function() M._render_spinner() end))
@@ -222,7 +225,7 @@ function M._render_spinner()
   end
   if s.mark then pcall(vim.api.nvim_buf_del_extmark, M.buf, M.spinner_ns, s.mark) end
   local count = vim.api.nvim_buf_line_count(M.buf)
-  local text = fit_width(" " .. SPINNER_FRAMES[s.frame] .. " pi is working…  (<leader>ax aborts)")
+  local text = fit_width(" " .. SPINNER_FRAMES[s.frame] .. " " .. (s.message or "Loading") .. "…")
   s.mark = vim.api.nvim_buf_set_extmark(M.buf, M.spinner_ns, count - 1, 0, {
     virt_lines = { { { text, "PiNvimSpinner" } } },
   })
@@ -241,6 +244,7 @@ function M.stop_spinner()
   end
   s.mark = nil
   s.frame = 1
+  s.message = nil
 end
 
 -- ---------------------------------------------------------------------------
@@ -310,6 +314,10 @@ function M.event(evt)
     if type(e) == "table" then
       if e.type == "text_start" then
         finalize_thinking()
+        -- Each text block starts on a fresh line — otherwise the stream
+        -- continues the thought summary (or tool output) line.
+        local count = vim.api.nvim_buf_line_count(M.buf)
+        if (vim.api.nvim_buf_get_lines(M.buf, count - 1, count, false)[1] or "") ~= "" then M.append_lines { "" } end
       elseif e.type == "text_delta" and type(e.delta) == "string" then
         M.append_text(e.delta)
       elseif e.type == "thinking_delta" and type(e.delta) == "string" then

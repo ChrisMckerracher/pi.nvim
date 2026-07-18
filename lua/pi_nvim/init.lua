@@ -265,6 +265,22 @@ function M.setup(opts)
     map("n", "<leader>am", M.pick_model, { desc = "Pick pi model" })
     map("n", "<leader>at", M.cycle_thinking, { desc = "Cycle pi thinking level" })
     map("n", "<leader>ax", M.abort, { desc = "Abort pi agent run" })
+
+    -- Mouse wheel over the chat panel scrolls it (the float is
+    -- non-focusable, so route wheel events by mouse position). Expr +
+    -- noremap: returning the key itself performs the default action.
+    local wheel = function(lhs, delta)
+      vim.keymap.set({ "n", "i" }, lhs, function()
+        local pos = vim.fn.getmousepos()
+        if panel.chat_win and pos.winid == panel.chat_win then
+          panel.scroll_chat_lines(delta)
+          return ""
+        end
+        return lhs
+      end, { expr = true, desc = "Scroll pi chat" })
+    end
+    wheel("<ScrollWheelUp>", -3)
+    wheel("<ScrollWheelDown>", 3)
   end
 end
 

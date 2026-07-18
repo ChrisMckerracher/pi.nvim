@@ -42,9 +42,10 @@ local function panel_width() return math.min(M._cfg.width, math.floor(vim.o.colu
 ---@return integer chat_text_height, integer chat_row, integer input_row
 local function layout_rows()
   local cfg = M._cfg
-  -- Reserve: cmdline/status (2) + two float borders (2 + 2).
-  local chat_height = math.max(5, vim.o.lines - cfg.input_height - 6)
-  return chat_height, 0, chat_height + 2
+  -- Full editor height: chat outer + input outer == vim.o.lines exactly.
+  local input_outer = cfg.input_height + 2
+  local chat_outer = math.max(4, vim.o.lines - input_outer)
+  return chat_outer - 2, 0, chat_outer
 end
 
 ---@param width integer
@@ -111,7 +112,7 @@ function M.open()
   M.input_win = vim.api.nvim_open_win(
     input.ensure_buf(),
     true,
-    float_config(width, cfg.input_height, input_row, true, " message pi — <CR> send · <C-j> newline ")
+    float_config(width, cfg.input_height, input_row, true, " message pi — <CR> send · <C-j> nl · <C-d/u> scroll ")
   )
   vim.wo[M.input_win].wrap = true
   vim.wo[M.input_win].linebreak = true
@@ -149,8 +150,13 @@ function M._relayout()
   -- noautocmd is an open-time-only option; set_config rejects it.
   local chat_cfg = float_config(width, chat_height, chat_row, false, chat_title())
   chat_cfg.noautocmd = nil
-  local input_cfg =
-    float_config(width, M._cfg.input_height, input_row, true, " message pi — <CR> send · <C-j> newline ")
+  local input_cfg = float_config(
+    width,
+    M._cfg.input_height,
+    input_row,
+    true,
+    " message pi — <CR> send · <C-j> nl · <C-d/u> scroll "
+  )
   input_cfg.noautocmd = nil
   if M.chat_win and vim.api.nvim_win_is_valid(M.chat_win) then vim.api.nvim_win_set_config(M.chat_win, chat_cfg) end
   if M.input_win and vim.api.nvim_win_is_valid(M.input_win) then vim.api.nvim_win_set_config(M.input_win, input_cfg) end
@@ -169,6 +175,14 @@ function M.scroll_chat(direction)
   if not (M.chat_win and vim.api.nvim_win_is_valid(M.chat_win)) then return end
   local keys = direction > 0 and "\x04" or "\x15"
   vim.api.nvim_win_call(M.chat_win, function() vim.cmd("normal! " .. keys) end)
+end
+
+--- Scroll the chat panel by N lines (mouse wheel path).
+---@param lines integer positive = down, negative = up
+function M.scroll_chat_lines(lines)
+  if not (M.chat_win and vim.api.nvim_win_is_valid(M.chat_win)) then return end
+  local key = lines > 0 and "\x05" or "\x19" -- <C-e> / <C-y>
+  vim.api.nvim_win_call(M.chat_win, function() vim.cmd(("normal! %d%s"):format(math.abs(lines), key)) end)
 end
 
 return M

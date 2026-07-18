@@ -8,6 +8,7 @@ describe("chat buffer", function()
     render_thinking = true,
     tool_result_lines = 12,
     max_context_file_lines = 200,
+    working_messages = { "Testing" },
   }
 
   before_each(function()
@@ -72,5 +73,30 @@ describe("chat buffer", function()
     end
     assert.is_true(found_conceal)
     assert.is_true(found_code)
+  end)
+
+  it("starts the answer on a new line after the thought summary", function()
+    chat._cfg.render_thinking = false
+    chat.event { type = "message_start", message = { role = "assistant" } }
+    chat.event { type = "message_update", assistantMessageEvent = { type = "thinking_start" } }
+    chat.event { type = "message_update", assistantMessageEvent = { type = "thinking_delta", delta = "hmm" } }
+    chat.event { type = "message_update", assistantMessageEvent = { type = "thinking_end" } }
+    chat.event { type = "message_update", assistantMessageEvent = { type = "text_start" } }
+    chat.event { type = "message_update", assistantMessageEvent = { type = "text_delta", delta = "the answer" } }
+    local lines = vim.api.nvim_buf_get_lines(chat.buf, 0, -1, false)
+    local thought_lnum, answer_lnum
+    for i, line in ipairs(lines) do
+      if line:find("∙ thought", 1, true) then thought_lnum = i end
+      if line == "the answer" then answer_lnum = i end
+    end
+    assert.is_not_nil(thought_lnum)
+    assert.equals(thought_lnum + 1, answer_lnum)
+  end)
+
+  it("picks a short working message per run", function()
+    chat.event { type = "agent_start" }
+    assert.equals("Testing", chat._spinner.message)
+    chat.stop_spinner()
+    assert.is_nil(chat._spinner.message)
   end)
 end)
