@@ -63,14 +63,23 @@ local function relativize_patch_paths(patch)
 end
 
 --- Detect the -p level git apply needs, from the patch --- header.
+--- pi's generateUnifiedPatch (jsdiff createTwoFilesPatch, FILE_HEADERS_ONLY)
+--- emits `--- <path>` / `+++ <path>` with NO a/ b/ prefix, path exactly as
+--- the agent passed it (relative or absolute). Verified against pi 0.80.10
+--- source (core/tools/edit-diff.js).
 ---@param patch string
 ---@return string plevel, boolean unsafe
 function M._patch_mode(patch)
   local header = patch:match "^%-%-%-%s+(%S+)"
   if header and header:sub(1, 2) == "a/" then return "-p1", false end
   if header and header:sub(1, 1) == "/" then return "-p0", true end
-  return "-p1", false
+  return "-p0", false
 end
+
+--- The file path from the patch's first --- header.
+---@param patch string
+---@return string|nil
+local function header_path(patch) return patch:match "^%-%-%-%s+(%S+)" end
 
 --- Run `git apply` with the patch on stdin; cb(ok, stderr).
 ---@param args string[]
@@ -84,13 +93,18 @@ local function git_apply(args, cwd, patch, cb)
 end
 
 --- Reconstruct the pre-edit content by reverse-applying patches to a mirror
---- of the current file inside a temp dir. cb(before_lines|nil, err).
+--- of the current file inside a temp dir. The mirror path derives from the
+--- patch HEADER path (not the cwd-relative path) so relative and absolute
+--- patches both land exactly. cb(before_lines|nil, err).
 ---@param path string
 ---@param cb fun(lines:string[]|nil, err:string|nil)
 function M._reconstruct(path, cb)
-  local rel = vim.fn.fnamemodify(path, ":.")
+  local patch = combined_reverse_patch(path)
+  local hpath = header_path(patch) or path
+  local is_abs = hpath:sub(1, 1) == "/"
+  local mirror_rel = is_abs and hpath:sub(2) or hpath
   local tmpdir = vim.fn.tempname()
-  local mirror = tmpdir .. "/" .. rel
+  local mirror = tmpdir .. "/" .. mirror_rel
   vim.fn.mkdir(vim.fn.fnamemodify(mirror, ":h"), "p")
 
   local ok_read, current = pcall(vim.fn.readfile, path)
@@ -100,8 +114,15 @@ function M._reconstruct(path, cb)
   end
   vim.fn.writefile(current, mirror)
 
-  local patch = relativize_patch_paths(combined_reverse_patch(path))
-  git_apply({ "-R", "-p1" }, tmpdir, patch, function(ok, err)
+  local apply_patch, args
+  if is_abs then
+    apply_patch = relativize_patch_paths(patch)
+    args = { "-R", "-p1" }
+  else
+    apply_patch = patch
+    args = { "-R", "-p0" }
+  end
+  git_apply(args, tmpdir, apply_patch, function(ok, err)
     if not ok then
       cb(nil, "reverse-apply failed (file may have changed after the edit): " .. err:sub(1, 200))
       return
