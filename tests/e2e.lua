@@ -13,7 +13,7 @@ pi.setup { keymaps = false }
 
 -- Sidebar opens and both windows exist.
 pi.toggle()
-local sidebar = require "pi_nvim.sidebar"
+local sidebar = require "pi_nvim.panel"
 check("sidebar opens", sidebar.is_open())
 check("chat buffer exists", require("pi_nvim.chat").buf ~= nil)
 check("input buffer exists", require("pi_nvim.input").buf ~= nil)

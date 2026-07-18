@@ -1,6 +1,7 @@
 # Authorship
 - 2026-07-18 00:55 — collaborative: Christopher McKerracher + pi (k3) (initial design — polished from [iteration/001](../iteration/001-cursor-like-nvim-with-embedded-pi.md); implements ADR-001..004)
 - 2026-07-18 02:10 — agent: pi (k3) (phases 0–4 implemented: protocol v2 (ADR-005), host + Lua plugin shipped; phase table marked done; message composition moved client-side)
+- 2026-07-18 03:10 — agent: pi (k3) (chat UI rebuilt after live UX feedback: panel = non-focusable floats, thinking collapsed, fence conceal, spinner; see notes)
 
 # Design 001: SDK Host + Lua Frontend for Neovim Embedding
 
@@ -120,8 +121,14 @@ Implementation notes that refine the sketch above:
   `get_messages` and the host-initiated `editor_context` sub-channel.
 - Message composition moved fully client-side (Lua composes context blocks +
   `@file` expansions; `prompt` carries one `message` string).
-- Status chrome landed as the chat window's winbar (model · thinking ·
+- Status chrome landed as the chat float's border title (model · thinking ·
   streaming) instead of a statusline component — zero user-config surgery.
+- UX revision 1 (live feedback): the chat is a **non-focusable floating
+  panel**, not a split — Neovim has no widget primitives, so panel-ness comes
+  from `focusable=false` floats + read-only buffers + borders. Thinking
+  collapses to a dim summary line (`render_thinking` config expands), code
+  fences conceal, an animated spinner shows while the agent runs, and all
+  virtual text is width-truncated (virtual lines never wrap).
 
 Each phase ships working software + tests + `KEYBINDINGS.md` update.
 

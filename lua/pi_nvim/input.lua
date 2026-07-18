@@ -1,5 +1,6 @@
---- Input box: the prompt buffer at the bottom of the sidebar.
---- <CR> sends (insert and normal mode), <C-j> inserts a newline (native).
+--- Input box: the prompt float at the bottom of the panel — the ONLY
+--- focusable surface. <CR> sends (insert and normal mode), <C-j> inserts a
+--- newline (native), <Esc> closes the panel, <C-d>/<C-u> scroll the chat.
 local M = {
   ---@type integer|nil
   buf = nil,
@@ -7,13 +8,17 @@ local M = {
   _cfg = nil,
   ---@type fun(text:string)|nil
   _send = nil,
+  ---@type { on_close: fun(), scroll: fun(direction:integer) }|nil
+  _deps = nil,
 }
 
 ---@param cfg PiNvimConfig
 ---@param send_fn fun(text:string)
-function M.setup(cfg, send_fn)
+---@param deps { on_close: fun(), scroll: fun(direction:integer) }
+function M.setup(cfg, send_fn, deps)
   M._cfg = cfg
   M._send = send_fn
+  M._deps = deps
 end
 
 ---@return integer
@@ -30,6 +35,17 @@ function M.ensure_buf()
     send()
   end, { buffer = M.buf, desc = "Send message to pi" })
   vim.keymap.set("n", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })
+  vim.keymap.set("n", "<Esc>", function()
+    if M._deps then M._deps.on_close() end
+  end, { buffer = M.buf, desc = "Close pi panel" })
+  for _, mode in ipairs { "i", "n" } do
+    vim.keymap.set(mode, "<C-d>", function()
+      if M._deps then M._deps.scroll(1) end
+    end, { buffer = M.buf, desc = "Scroll pi chat down" })
+    vim.keymap.set(mode, "<C-u>", function()
+      if M._deps then M._deps.scroll(-1) end
+    end, { buffer = M.buf, desc = "Scroll pi chat up" })
+  end
   return M.buf
 end
 

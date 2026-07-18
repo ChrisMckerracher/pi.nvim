@@ -7,7 +7,7 @@ local context = require "pi_nvim.context"
 local diff = require "pi_nvim.diff"
 local input = require "pi_nvim.input"
 local sessions = require "pi_nvim.sessions"
-local sidebar = require "pi_nvim.sidebar"
+local panel = require "pi_nvim.panel"
 
 local M = {}
 
@@ -35,7 +35,7 @@ function M._ensure_host(cb)
       vim.notify("pi: " .. (err or "host failed to start"), vim.log.levels.ERROR)
       return
     end
-    sidebar.update_winbar(host.state)
+    panel.update_winbar(host.state)
     cb()
   end)
 end
@@ -60,35 +60,35 @@ function M._send(text)
         and ("+ " .. attached.kind .. ": " .. attached.path .. (attached.start_line and (" lines " .. attached.start_line .. "-" .. attached.end_line) or ""))
       or nil
     chat.echo_user(text, note)
-    sidebar.open()
+    panel.open()
     local cmd = M._host:is_streaming() and "steer" or "prompt"
     M._host:request(cmd, { message = message }, function(resp)
       if not resp.success then chat.show_error(resp.error or "send failed") end
     end)
-    sidebar.update_winbar(M._host.state)
+    panel.update_winbar(M._host.state)
   end)
 end
 
 --- Toggle the sidebar (spawns the host on first open).
 function M.toggle()
-  sidebar.toggle()
-  if sidebar.is_open() then M._ensure_host(function() end) end
+  panel.toggle()
+  if panel.is_open() then M._ensure_host(function() end) end
 end
 
 --- <leader>as: capture visual selection → sidebar with input focused.
 function M.send_selection()
   context.capture_visual()
-  sidebar.open()
+  panel.open()
   M._ensure_host(function() end)
-  sidebar.focus_input()
+  panel.focus_input()
 end
 
 --- <leader>af: capture current file → sidebar with input focused.
 function M.send_file()
   context.capture_file()
-  sidebar.open()
+  panel.open()
   M._ensure_host(function() end)
-  sidebar.focus_input()
+  panel.focus_input()
 end
 
 --- <leader>ak: Ctrl+K-style inline edit of the visual selection (warm session).
@@ -103,7 +103,7 @@ function M.inline_edit()
       local message = context.compose("", M._cfg)
       message = "[inline edit — modify the file directly with your edit tool]\n" .. instruction .. "\n\n" .. message
       chat.echo_user("✂ " .. instruction, "+ selection")
-      sidebar.open()
+      panel.open()
       local cmd = M._host:is_streaming() and "steer" or "prompt"
       M._host:request(cmd, { message = message }, function(resp)
         if not resp.success then chat.show_error(resp.error or "send failed") end
@@ -138,7 +138,7 @@ function M.new_session()
       end
       M._host.state = resp.data
       chat.note "new session started"
-      sidebar.update_winbar(M._host.state)
+      panel.update_winbar(M._host.state)
     end)
   end)
 end
@@ -149,7 +149,7 @@ function M.resume_session()
     sessions.pick(M._host, function()
       M._host:request("get_messages", {}, function(resp)
         if resp.success then chat.replay(resp.data) end
-        sidebar.update_winbar(M._host.state)
+        panel.update_winbar(M._host.state)
       end)
     end)
   end)
@@ -176,7 +176,7 @@ function M.pick_model()
             return
           end
           M._host.state = set_resp.data
-          sidebar.update_winbar(M._host.state)
+          panel.update_winbar(M._host.state)
           chat.note("model → " .. choice.provider .. "/" .. choice.id)
         end)
       end)
@@ -191,7 +191,7 @@ function M.cycle_thinking()
       if not resp.success then return end
       local level = resp.data and resp.data.level or "?"
       M._host.state.thinkingLevel = level
-      sidebar.update_winbar(M._host.state)
+      panel.update_winbar(M._host.state)
       vim.notify("pi thinking: " .. tostring(level), vim.log.levels.INFO)
     end)
   end)
@@ -208,8 +208,11 @@ function M.setup(opts)
   M._cfg = cfg
 
   chat.setup(cfg)
-  input.setup(cfg, M._send)
-  sidebar.setup(cfg)
+  input.setup(cfg, M._send, {
+    on_close = function() panel.close() end,
+    scroll = function(direction) panel.scroll_chat(direction) end,
+  })
+  panel.setup(cfg)
   diff.setup(cfg)
 
   local host = Host.new(cfg)
@@ -221,9 +224,9 @@ function M.setup(opts)
       M._answer_editor_context(evt.requestId)
     elseif evt.type == "agent_start" then
       diff.reset()
-      sidebar.update_winbar(host.state)
+      panel.update_winbar(host.state)
     elseif evt.type == "agent_settled" or evt.type == "thinking_level_changed" then
-      sidebar.update_winbar(host.state)
+      panel.update_winbar(host.state)
     end
   end)
 

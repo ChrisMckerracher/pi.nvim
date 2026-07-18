@@ -25,7 +25,7 @@ function M.defaults()
     input_height = 6,
     host_cmd = { "node", repo_root() .. "/host/dist/main.js" },
     auto_scroll = true,
-    render_thinking = true,
+    render_thinking = false, -- thinking collapses to a dim summary line; true streams raw
     tool_result_lines = 12,
     max_context_file_lines = 200,
     editor_context = true,

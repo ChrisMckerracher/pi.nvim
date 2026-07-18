@@ -1,30 +1,39 @@
---- Chat rendering: the sidebar's message buffer. Owns all chat-buffer
---- mutations (engineering rule 1). Renders the forwarded SDK event stream:
---- assistant text/thinking deltas, tool calls and results, lifecycle notes.
+--- Chat rendering: the panel's transcript buffer. Owns all chat-buffer
+--- mutations (engineering rule 1). The buffer backs a NON-FOCUSABLE float —
+--- it is a read-only transcript surface, not an editor pane (lua.md rule 9).
 ---
---- The buffer is READ-ONLY for the user (modifiable=false) — chat history is
---- a transcript, not a document. Our own renders unlock it transiently via
---- with_modifiable().
+--- Rendering: clean role separators, collapsed thinking, concealed code
+--- fences, subtle code background. No raw markdown headers.
 local M = {
   ---@type integer|nil
   buf = nil,
   ns = vim.api.nvim_create_namespace "pi_nvim_chat",
   spinner_ns = vim.api.nvim_create_namespace "pi_nvim_spinner",
+  style_ns = vim.api.nvim_create_namespace "pi_nvim_style",
   ---@type PiNvimConfig|nil
   _cfg = nil,
   _spinner = { timer = nil, frame = 1, mark = nil },
+  ---@type { lnum: integer, lines: integer }|nil
+  _thinking = nil,
 }
 
 ---@param cfg PiNvimConfig
 function M.setup(cfg)
   M._cfg = cfg
-  vim.api.nvim_set_hl(0, "PiNvimHeader", { link = "Title", default = true })
+  vim.api.nvim_set_hl(0, "PiNvimUserHeader", { link = "Title", default = true })
+  vim.api.nvim_set_hl(0, "PiNvimPiHeader", { link = "Special", default = true })
   vim.api.nvim_set_hl(0, "PiNvimTool", { link = "Statement", default = true })
   vim.api.nvim_set_hl(0, "PiNvimToolResult", { link = "Comment", default = true })
   vim.api.nvim_set_hl(0, "PiNvimThinking", { link = "Comment", default = true })
   vim.api.nvim_set_hl(0, "PiNvimNote", { link = "Comment", default = true })
   vim.api.nvim_set_hl(0, "PiNvimError", { link = "ErrorMsg", default = true })
   vim.api.nvim_set_hl(0, "PiNvimSpinner", { link = "Statement", default = true })
+  local float_bg = vim.api.nvim_get_hl(0, { name = "NormalFloat", link = false }).bg
+  if float_bg then
+    vim.api.nvim_set_hl(0, "PiNvimCode", { bg = float_bg, default = true })
+  else
+    vim.api.nvim_set_hl(0, "PiNvimCode", { link = "NormalFloat", default = true })
+  end
 end
 
 ---@return integer
@@ -35,8 +44,8 @@ function M.ensure_buf()
   vim.bo[M.buf].bufhidden = "hide"
   vim.bo[M.buf].swapfile = false
   vim.bo[M.buf].filetype = "markdown"
-  -- Chat history is a transcript: read-only for the user (see header note).
-  -- (No `readonly`: it would W10-warn on our own transient-unlock writes.)
+  -- Transcript: read-only for the user (lua.md rule 9). No `readonly` flag —
+  -- it W10-warns on our own transient-unlock writes.
   vim.bo[M.buf].modifiable = false
   return M.buf
 end
@@ -50,7 +59,6 @@ local function with_modifiable(fn)
   if not ok then error(err) end
 end
 
---- Highlight a line range with a group.
 ---@param from integer 0-indexed inclusive
 ---@param to integer 0-indexed exclusive
 ---@param hl string|nil
@@ -61,13 +69,23 @@ local function hl_lines(from, to, hl)
   end
 end
 
---- Append whole lines at the end of the buffer.
+--- Panel-aware truncation. Virtual text and one-line summaries never wrap
+--- (lua.md rule 11) — anything longer gets cut with an ellipsis.
+---@param text string
+---@return string
+local function fit_width(text)
+  local width = M._cfg.width
+  local wins = M.buf and vim.fn.win_findbuf(M.buf) or {}
+  if #wins > 0 then width = vim.api.nvim_win_get_width(wins[1]) end
+  if #text <= width - 2 then return text end
+  return text:sub(1, math.max(1, width - 5)) .. "…"
+end
+
 ---@param lines string[]
 ---@param hl string|nil
 function M.append_lines(lines, hl)
   if #lines == 0 then return end
   local count = vim.api.nvim_buf_line_count(M.buf)
-  -- Keep a single leading blank line from looking odd on an empty buffer.
   if count == 1 and vim.api.nvim_buf_get_lines(M.buf, 0, 1, false)[1] == "" and lines[1] == "" then
     lines = vim.list_slice(lines, 2)
     if #lines == 0 then return end
@@ -76,7 +94,6 @@ function M.append_lines(lines, hl)
   hl_lines(count, count + #lines, hl)
 end
 
---- Append streaming text, continuing the current last line.
 ---@param text string
 ---@param hl string|nil
 function M.append_text(text, hl)
@@ -91,16 +108,20 @@ function M.append_text(text, hl)
   hl_lines(count - 1, count - 1 + #replacement, hl)
 end
 
---- Section header, e.g. "## Pi".
----@param text string
-function M.header(text) M.append_lines({ "", "## " .. text, "" }, "PiNvimHeader") end
+--- Role separator: a clean rule line, not a markdown header. Trailing blank
+--- line keeps streamed text off the rule itself.
+---@param role "You"|"Pi"
+local function separator(role)
+  local hl = role == "You" and "PiNvimUserHeader" or "PiNvimPiHeader"
+  M.append_lines({ "", ("── %s "):format(role) .. string.rep("─", 20), "" }, hl)
+end
 
 --- Locally echo what the user sent (the SDK does not re-emit user messages
 --- in a way the chat renders; echoing also shows what was attached).
 ---@param text string
 ---@param attached_note string|nil
 function M.echo_user(text, attached_note)
-  M.header "You"
+  separator "You"
   M.append_lines(vim.split(text, "\n", { plain = true }))
   if attached_note then M.append_lines({ attached_note }, "PiNvimNote") end
 end
@@ -113,7 +134,114 @@ function M.note(text) M.append_lines({ "", "— " .. text }, "PiNvimNote") end
 ---@param text string
 function M.show_error(text) M.append_lines({ "", "! " .. text }, "PiNvimError") end
 
---- Short human summary of a tool call's arguments.
+-- ---------------------------------------------------------------------------
+-- Thinking: collapsed by default (a single dim line with a line count).
+-- config.render_thinking = true streams the raw dimmed text instead.
+-- ---------------------------------------------------------------------------
+
+--- Finalize a collapsed thinking block, if one is open.
+local function finalize_thinking()
+  local t = M._thinking
+  if not t then return end
+  M._thinking = nil
+  with_modifiable(
+    function()
+      vim.api.nvim_buf_set_lines(
+        M.buf,
+        t.lnum,
+        t.lnum + 1,
+        false,
+        { ("∙ thought (%d lines)"):format(math.max(t.lines, 1)) }
+      )
+    end
+  )
+  hl_lines(t.lnum, t.lnum + 1, "PiNvimThinking")
+end
+
+---@param delta string
+local function thinking_delta(delta)
+  if M._cfg.render_thinking then
+    M.append_text(delta, "PiNvimThinking")
+    return
+  end
+  if not M._thinking then
+    M.append_lines({ "∙ thinking…" }, "PiNvimThinking")
+    M._thinking = { lnum = vim.api.nvim_buf_line_count(M.buf) - 1, lines = 0 }
+  end
+  local _, newlines = delta:gsub("\n", "\n")
+  M._thinking.lines = M._thinking.lines + newlines + 1
+end
+
+-- ---------------------------------------------------------------------------
+-- Code fence styling: conceal ``` fence lines, tint block interiors.
+-- Scans a trailing window of the buffer; cheap and idempotent.
+-- ---------------------------------------------------------------------------
+
+function M._restyle()
+  local count = vim.api.nvim_buf_line_count(M.buf)
+  local from = math.max(0, count - 300)
+  vim.api.nvim_buf_clear_namespace(M.buf, M.style_ns, from, -1)
+  local lines = vim.api.nvim_buf_get_lines(M.buf, from, count, false)
+  local in_code = false
+  for i, line in ipairs(lines) do
+    local lnum = from + i - 1
+    if line:match "^%s*```" then
+      vim.api.nvim_buf_set_extmark(M.buf, M.style_ns, lnum, 0, { conceal_lines = "" })
+      in_code = not in_code
+    elseif in_code then
+      vim.api.nvim_buf_set_extmark(M.buf, M.style_ns, lnum, 0, { line_hl_group = "PiNvimCode" })
+    end
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Spinner: animated working indicator (agent_start → agent_settled).
+-- A virtual line below the content — never interferes with the stream.
+-- ---------------------------------------------------------------------------
+
+local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
+
+function M.start_spinner()
+  if M._spinner.timer then return end
+  M.ensure_buf()
+  local timer = vim.uv.new_timer()
+  M._spinner.timer = timer
+  timer:start(0, 90, vim.schedule_wrap(function() M._render_spinner() end))
+end
+
+function M._render_spinner()
+  local s = M._spinner
+  if not (M.buf and vim.api.nvim_buf_is_valid(M.buf)) then
+    M.stop_spinner()
+    return
+  end
+  if s.mark then pcall(vim.api.nvim_buf_del_extmark, M.buf, M.spinner_ns, s.mark) end
+  local count = vim.api.nvim_buf_line_count(M.buf)
+  local text = fit_width(" " .. SPINNER_FRAMES[s.frame] .. " pi is working…  (<leader>ax aborts)")
+  s.mark = vim.api.nvim_buf_set_extmark(M.buf, M.spinner_ns, count - 1, 0, {
+    virt_lines = { { { text, "PiNvimSpinner" } } },
+  })
+  s.frame = (s.frame % #SPINNER_FRAMES) + 1
+end
+
+function M.stop_spinner()
+  local s = M._spinner
+  if s.timer then
+    s.timer:stop()
+    s.timer:close()
+    s.timer = nil
+  end
+  if s.mark and M.buf and vim.api.nvim_buf_is_valid(M.buf) then
+    pcall(vim.api.nvim_buf_del_extmark, M.buf, M.spinner_ns, s.mark)
+  end
+  s.mark = nil
+  s.frame = 1
+end
+
+-- ---------------------------------------------------------------------------
+-- Tool call rendering
+-- ---------------------------------------------------------------------------
+
 ---@param name string
 ---@param args table|nil
 ---@return string
@@ -125,7 +253,6 @@ local function args_summary(name, args)
   return " " .. (ok and encoded:sub(1, 80) or "")
 end
 
---- Extract display text from a tool result.
 ---@param result table|nil
 ---@return string
 local function result_text(result)
@@ -156,7 +283,11 @@ local function truncate_lines(text, max_lines)
   return lines
 end
 
---- Render one forwarded agent event into the chat buffer.
+-- ---------------------------------------------------------------------------
+-- Event rendering
+-- ---------------------------------------------------------------------------
+
+--- Render one forwarded agent event into the transcript.
 ---@param evt table
 function M.event(evt)
   M.ensure_buf()
@@ -168,21 +299,23 @@ function M.event(evt)
     M.stop_spinner()
   elseif t == "message_start" then
     local msg = evt.message
-    if type(msg) == "table" and msg.role == "assistant" then M.header "Pi" end
+    if type(msg) == "table" and msg.role == "assistant" then separator "Pi" end
   elseif t == "message_update" then
     local e = evt.assistantMessageEvent
     if type(e) == "table" then
-      if e.type == "text_delta" and type(e.delta) == "string" then
+      if e.type == "text_start" then
+        finalize_thinking()
+      elseif e.type == "text_delta" and type(e.delta) == "string" then
         M.append_text(e.delta)
-      elseif M._cfg.render_thinking and e.type == "thinking_delta" and type(e.delta) == "string" then
-        M.append_text(e.delta, "PiNvimThinking")
-      elseif M._cfg.render_thinking and e.type == "thinking_start" then
-        M.append_lines({ "### thinking" }, "PiNvimThinking")
+      elseif e.type == "thinking_delta" and type(e.delta) == "string" then
+        thinking_delta(e.delta)
+      elseif e.type == "thinking_end" then
+        finalize_thinking()
       end
     end
   elseif t == "tool_execution_start" then
     local name = tostring(evt.toolName or "?")
-    M.append_lines({ "", "⚙ " .. name .. args_summary(name, evt.args) }, "PiNvimTool")
+    M.append_lines({ "", fit_width("⚙ " .. name .. args_summary(name, evt.args)) }, "PiNvimTool")
   elseif t == "tool_execution_end" then
     local text = result_text(evt.result)
     if text ~= "" then
@@ -205,11 +338,12 @@ function M.event(evt)
     M.show_error(tostring(evt.message))
   end
 
+  M._restyle()
   M.scroll_to_bottom()
 end
 
---- Keep visible chat windows pinned to the bottom while streaming, unless
---- the user has scrolled up to read (cursor above the last 10 lines).
+--- Keep the panel pinned to the bottom while streaming, unless the user has
+--- scrolled up to read (cursor above the last 10 lines).
 function M.scroll_to_bottom()
   if not M._cfg.auto_scroll then return end
   local count = vim.api.nvim_buf_line_count(M.buf)
@@ -217,50 +351,6 @@ function M.scroll_to_bottom()
     local cursor = vim.api.nvim_win_get_cursor(win)
     if cursor[1] >= count - 10 then pcall(vim.api.nvim_win_set_cursor, win, { count, 0 }) end
   end
-end
-
--- ---------------------------------------------------------------------------
--- Spinner: animated working indicator while the agent runs (agent_start →
--- agent_settled). Rendered as a virtual line below the last buffer line so
--- it never interferes with streamed content.
--- ---------------------------------------------------------------------------
-
-local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
-
-function M.start_spinner()
-  if M._spinner.timer then return end
-  M.ensure_buf()
-  local timer = vim.uv.new_timer()
-  M._spinner.timer = timer
-  timer:start(0, 90, vim.schedule_wrap(function() M._render_spinner() end))
-end
-
-function M._render_spinner()
-  local s = M._spinner
-  if not (M.buf and vim.api.nvim_buf_is_valid(M.buf)) then
-    M.stop_spinner()
-    return
-  end
-  if s.mark then pcall(vim.api.nvim_buf_del_extmark, M.buf, M.spinner_ns, s.mark) end
-  local count = vim.api.nvim_buf_line_count(M.buf)
-  s.mark = vim.api.nvim_buf_set_extmark(M.buf, M.spinner_ns, count - 1, 0, {
-    virt_lines = { { { " " .. SPINNER_FRAMES[s.frame] .. " pi is working…  (<leader>ax aborts)", "PiNvimSpinner" } } },
-  })
-  s.frame = (s.frame % #SPINNER_FRAMES) + 1
-end
-
-function M.stop_spinner()
-  local s = M._spinner
-  if s.timer then
-    s.timer:stop()
-    s.timer:close()
-    s.timer = nil
-  end
-  if s.mark and M.buf and vim.api.nvim_buf_is_valid(M.buf) then
-    pcall(vim.api.nvim_buf_del_extmark, M.buf, M.spinner_ns, s.mark)
-  end
-  s.mark = nil
-  s.frame = 1
 end
 
 ---@param msg table
@@ -293,13 +383,14 @@ function M.replay(messages)
         if msg.role == "user" then
           M.echo_user(text)
         elseif msg.role == "assistant" then
-          M.header "Pi"
+          separator "Pi"
           M.append_lines(vim.split(text, "\n", { plain = true }))
         end
       end
     end
   end
   M.note "history replayed (text only)"
+  M._restyle()
   M.scroll_to_bottom()
 end
 

@@ -46,4 +46,31 @@ describe("chat buffer", function()
     chat.event { type = "host_error", message = "boom" }
     assert.is_nil(chat._spinner.timer)
   end)
+
+  it("collapses thinking into a single dim summary line", function()
+    chat._cfg.render_thinking = false -- collapsed mode (the default)
+    chat.event { type = "message_start", message = { role = "assistant" } }
+    chat.event { type = "message_update", assistantMessageEvent = { type = "thinking_start" } }
+    chat.event {
+      type = "message_update",
+      assistantMessageEvent = { type = "thinking_delta", delta = "let me\nconsider this" },
+    }
+    chat.event { type = "message_update", assistantMessageEvent = { type = "thinking_end" } }
+    local text = table.concat(vim.api.nvim_buf_get_lines(chat.buf, 0, -1, false), "\n")
+    assert.truthy(text:find("∙ thought (2 lines)", 1, true))
+    assert.is_nil(text:find("consider this", 1, true))
+  end)
+
+  it("conceals code fences and tints block interiors", function()
+    chat.echo_user "try this:\n```lua\nprint('x')\n```"
+    chat._restyle()
+    local found_conceal, found_code = false, false
+    for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(chat.buf, chat.style_ns, 0, -1, { details = true })) do
+      local details = mark[4]
+      if details.conceal_lines then found_conceal = true end
+      if details.line_hl_group == "PiNvimCode" then found_code = true end
+    end
+    assert.is_true(found_conceal)
+    assert.is_true(found_code)
+  end)
 end)
