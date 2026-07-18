@@ -1,6 +1,7 @@
 /**
- * Protocol v1 — versioned JSONL framing between the Neovim Lua frontend and
- * this host. This file is the source of truth for both sides (ADR-002).
+ * Protocol v2 — versioned JSONL framing between the Neovim Lua frontend and
+ * this host. This file is the source of truth for both sides (ADR-002,
+ * extended by ADR-005).
  *
  * Framing discipline (mirrors pi's RPC mode): records are delimited by LF
  * only. Split on "\n" exclusively — never on Unicode line/paragraph
@@ -10,9 +11,13 @@
  * not remodeled (same choice as pi's own RPC mode). Their wire type is
  * `ForwardedEvent` — consumers narrow by `type`. Commands, responses, and
  * host-synthetic events are fully modeled below.
+ *
+ * v2 changes (ADR-005): session management commands, message history, and a
+ * host-initiated request/response sub-channel (`editor_context_request` →
+ * `editor_context_response`) for the agent-pull editor context tool.
  */
 
-export const PROTOCOL_VERSION = 1 as const;
+export const PROTOCOL_VERSION = 2 as const;
 
 // ---------------------------------------------------------------------------
 // Commands (nvim → host)
@@ -26,7 +31,11 @@ export type Command =
   | { id?: string; type: "abort" }
   | { id?: string; type: "get_state" }
   | { id?: string; type: "new_session" }
+  | { id?: string; type: "list_sessions" }
+  | { id?: string; type: "switch_session"; path: string }
+  | { id?: string; type: "get_messages" }
   | { id?: string; type: "cycle_thinking" }
+  | { id?: string; type: "editor_context_response"; requestId: string; context: string }
   | { id?: string; type: "dispose" };
 
 // ---------------------------------------------------------------------------
@@ -43,7 +52,7 @@ export interface Response {
   error?: string;
 }
 
-/** State snapshot returned by `hello` and `get_state`, and after `new_session`. */
+/** State snapshot returned by `hello` / `get_state` and after session changes. */
 export interface HostState {
   model: { provider: string; id: string; name: string } | null;
   thinkingLevel: string;
@@ -53,11 +62,32 @@ export interface HostState {
   messageCount: number;
 }
 
-/** Events the host synthesizes itself (not forwarded from the SDK). */
-export interface HostSyntheticEvent {
+/** One entry in the session list for `list_sessions`. */
+export interface SessionListItem {
+  path: string;
+  id: string;
+  name: string | undefined;
+  created: string;
+  modified: string;
+  messageCount: number;
+  firstMessage: string;
+  isCurrent: boolean;
+}
+
+/** Host-side boot/init failure event. */
+export interface HostErrorEvent {
   type: "host_error";
   message: string;
 }
+
+/** Host-initiated request for the editor's current context (ADR-005). */
+export interface EditorContextRequestEvent {
+  type: "editor_context_request";
+  requestId: string;
+}
+
+/** Events the host synthesizes itself (not forwarded from the SDK). */
+export type HostSyntheticEvent = HostErrorEvent | EditorContextRequestEvent;
 
 /**
  * An agent event forwarded from the pi SDK. Shapes are owned by the SDK
@@ -113,7 +143,7 @@ export function parseCommand(line: string): Command {
   return parsed as Command;
 }
 
-/** Narrow a parsed command to a specific command type, or throw. */
+/** Narrow a parsed command to one carrying a non-empty `message`, or throw. */
 export function requireMessage(command: Command): string {
   if (!("message" in command) || typeof command.message !== "string" || command.message === "") {
     throw new Error(`Command '${command.type}' requires a non-empty 'message' field`);

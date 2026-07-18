@@ -39,3 +39,4 @@ What are the positive and negative outcomes?
 | [002](002-versioned-jsonl-stdio-protocol.md) | Versioned LF-delimited JSONL protocol over stdio between Lua and host |
 | [003](003-reuse-user-pi-config-and-shared-session-store.md) | Reuse the user's `~/.pi/agent` config and session store — no parallel config |
 | [004](004-diff-review-via-streamed-patches.md) | Diff review from SDK-streamed `details.patch`, no git plugin |
+| [005](005-host-initiated-requests-and-client-side-composition.md) | Host-initiated request/response (editor_context) + client-side message composition |

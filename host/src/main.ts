@@ -65,6 +65,23 @@ async function dispatch(host: AgentHost, command: Command): Promise<Response | n
         return reply(command, { success: true });
       case "new_session":
         return reply(command, { success: true, data: await host.newSession() });
+      case "list_sessions":
+        return reply(command, { success: true, data: await host.listSessions() });
+      case "switch_session": {
+        if (!("path" in command) || typeof command.path !== "string" || command.path === "") {
+          throw new Error("Command 'switch_session' requires a non-empty 'path' field");
+        }
+        return reply(command, { success: true, data: await host.switchSession(command.path) });
+      }
+      case "get_messages":
+        return reply(command, { success: true, data: host.getMessages() });
+      case "editor_context_response": {
+        const delivered = host.resolveEditorContext(command.requestId, command.context);
+        return reply(command, {
+          success: delivered,
+          ...(delivered ? {} : { error: "Unknown or stale requestId" }),
+        });
+      }
       case "cycle_thinking":
         return reply(command, { success: true, data: { level: host.cycleThinking() ?? null } });
       case "dispose":
