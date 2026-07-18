@@ -265,6 +265,12 @@ function M.setup(opts)
     map("n", "<leader>am", M.pick_model, { desc = "Pick pi model" })
     map("n", "<leader>at", M.cycle_thinking, { desc = "Cycle pi thinking level" })
     map("n", "<leader>ax", M.abort, { desc = "Abort pi agent run" })
+    -- Chat scroll works from anywhere — the panel is non-focusable, so
+    -- keyboard nav can't rely on entering it (mouse wheel also works).
+    map("n", "<leader>aj", function() panel.scroll_chat(1) end, { desc = "Scroll pi chat down" })
+    map("n", "<leader>ak", function() panel.scroll_chat(-1) end, { desc = "Scroll pi chat up" })
+    map("n", "<leader>ag", function() panel.scroll_chat_edge "top" end, { desc = "Pi chat to top" })
+    map("n", "<leader>aG", function() panel.scroll_chat_edge "bottom" end, { desc = "Pi chat to bottom" })
 
     -- Mouse wheel over the chat panel scrolls it (the float is
     -- non-focusable, so route wheel events by mouse position). Expr +

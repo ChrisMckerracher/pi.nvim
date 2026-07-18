@@ -185,4 +185,11 @@ function M.scroll_chat_lines(lines)
   vim.api.nvim_win_call(M.chat_win, function() vim.cmd(("normal! %d%s"):format(math.abs(lines), key)) end)
 end
 
+--- Jump the chat panel to an edge (gg / G semantics, without focus).
+---@param edge "top"|"bottom"
+function M.scroll_chat_edge(edge)
+  if not (M.chat_win and vim.api.nvim_win_is_valid(M.chat_win)) then return end
+  vim.api.nvim_win_call(M.chat_win, function() vim.cmd("normal! " .. (edge == "top" and "gg" or "G")) end)
+end
+
 return M
