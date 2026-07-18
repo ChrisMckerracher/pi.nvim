@@ -66,4 +66,27 @@ function M.set_text(text)
   vim.api.nvim_buf_set_lines(M.buf, 0, -1, false, vim.split(text, "\n", { plain = true }))
 end
 
+--- Omni-completion for @file mentions (invoked with <C-x><C-o> after `@`).
+--- Only engages when the token under the cursor starts with `@`.
+---@param findstart integer 1 = locate start, 0 = return matches
+---@param base string
+---@return integer|string[]
+function M.omnifunc(findstart, base)
+  if findstart == 1 then
+    local line = vim.api.nvim_get_current_line()
+    local start = vim.fn.col "." - 1
+    while start > 0 and line:sub(start, start):match "[%w%._%~%-%/]" do
+      start = start - 1
+    end
+    -- 1-based index of '@' equals the 0-based completion start column.
+    if line:sub(start, start) == "@" then return start end
+    return -3 -- no completion, stay silent
+  end
+  local items = {}
+  for _, file in ipairs(vim.fn.getcompletion(base .. "*", "file")) do
+    items[#items + 1] = { word = file, abbr = file, menu = "@file" }
+  end
+  return items
+end
+
 return M

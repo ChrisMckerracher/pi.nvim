@@ -61,6 +61,7 @@ function forward(event: AgentSessionEvent): ForwardedEvent {
 /** Build the state snapshot returned by `hello` / `get_state` / session changes. */
 export function buildState(session: AgentSession): HostState {
   const model = session.model;
+  const sessionStats = session.getSessionStats();
   return {
     model: model ? { provider: model.provider, id: model.id, name: model.name } : null,
     thinkingLevel: session.thinkingLevel,
@@ -68,6 +69,11 @@ export function buildState(session: AgentSession): HostState {
     sessionId: session.sessionId,
     sessionFile: session.sessionFile,
     messageCount: session.messages.length,
+    stats: {
+      totalTokens: sessionStats.tokens.total,
+      cost: sessionStats.cost,
+      contextPercent: sessionStats.contextUsage?.percent ?? null,
+    },
   };
 }
 

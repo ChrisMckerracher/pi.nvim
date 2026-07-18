@@ -63,6 +63,11 @@ export interface HostState {
   sessionId: string;
   sessionFile: string | undefined;
   messageCount: number;
+  stats: {
+    totalTokens: number;
+    cost: number;
+    contextPercent: number | null;
+  };
 }
 
 /** One entry in the model catalog for `list_models`. */

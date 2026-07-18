@@ -101,6 +101,14 @@ try {
     .join("");
   checks.push(["final text is 'ok'", text.trim() === "ok"]);
 
+  // Stats contract: after a settled run, get_state reports real usage.
+  send({ id: "s", type: "get_state" });
+  await until(() => responses.some((r) => r.id === "s"), 10000, "get_state");
+  const stateResp = responses.find((r) => r.id === "s") as
+    (WireMsg & { data?: { stats?: { totalTokens?: number } } }) | undefined;
+  const totalTokens = stateResp?.data?.stats?.totalTokens ?? 0;
+  checks.push(["stats.totalTokens > 0 after run", totalTokens > 0]);
+
   send({ type: "dispose" });
   let failed = 0;
   for (const [name, ok] of checks) {

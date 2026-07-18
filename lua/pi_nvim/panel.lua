@@ -70,12 +70,24 @@ local function float_config(width, height, row, focusable, title)
   }
 end
 
+---@param n integer
+---@return string
+local function format_count(n)
+  if n >= 1000 then return ("%.1fk"):format(n / 1000) end
+  return tostring(n)
+end
+
 ---@return string
 local function chat_title()
   local state = M._last_state
   local model = state.model and state.model.id or "no-model"
   local streaming = state.isStreaming and " · …" or ""
-  return (" pi · %s · %s%s "):format(model, tostring(state.thinkingLevel), streaming)
+  local tokens = ""
+  if state.stats and state.stats.totalTokens > 0 then
+    tokens = (" · %s tok"):format(format_count(state.stats.totalTokens))
+    if state.stats.contextPercent then tokens = tokens .. (" (%d%%)"):format(state.stats.contextPercent) end
+  end
+  return (" pi · %s · %s%s%s "):format(model, tostring(state.thinkingLevel), streaming, tokens)
 end
 
 --- Open the panel (focuses the input float; no-op if already open).

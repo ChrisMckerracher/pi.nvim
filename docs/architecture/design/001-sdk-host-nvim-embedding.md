@@ -2,6 +2,7 @@
 - 2026-07-18 00:55 — collaborative: Christopher McKerracher + pi (k3) (initial design — polished from [iteration/001](../iteration/001-cursor-like-nvim-with-embedded-pi.md); implements ADR-001..004)
 - 2026-07-18 02:10 — agent: pi (k3) (phases 0–4 implemented: protocol v2 (ADR-005), host + Lua plugin shipped; phase table marked done; message composition moved client-side)
 - 2026-07-18 03:10 — agent: pi (k3) (chat UI rebuilt after live UX feedback: panel = non-focusable floats, thinking collapsed, fence conceal, spinner; see notes)
+- 2026-07-18 03:55 — agent: pi (k3) (final gap closure: token stats in panel title via getSessionStats; @file omni-completion; e2e-live asserts wire contract incl. stats)
 
 # Design 001: SDK Host + Lua Frontend for Neovim Embedding
 
@@ -129,6 +130,11 @@ Implementation notes that refine the sketch above:
   collapses to a dim summary line (`render_thinking` config expands), code
   fences conceal, an animated spinner shows while the agent runs, and all
   virtual text is width-truncated (virtual lines never wrap).
+- Final items: the panel title carries token/context stats (host
+  `getSessionStats`, refreshed per settled run), and `@` in the input offers
+  path completion via omnifunc (`<C-x><C-o>`). With these, every phase-table
+  item is shipped and verified — `make e2e-live` asserts the wire contract
+  (events + stats) against a real LLM turn.
 
 Each phase ships working software + tests + `KEYBINDINGS.md` update.
 

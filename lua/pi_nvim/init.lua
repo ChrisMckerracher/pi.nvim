@@ -226,7 +226,15 @@ function M.setup(opts)
     elseif evt.type == "agent_start" then
       diff.reset()
       panel.update_winbar(host.state)
-    elseif evt.type == "agent_settled" or evt.type == "thinking_level_changed" then
+    elseif evt.type == "agent_settled" then
+      -- Refresh stats (tokens/cost/context) once per settled run.
+      host:request("get_state", {}, function(resp)
+        if resp.success then
+          host.state = resp.data
+          panel.update_winbar(host.state)
+        end
+      end)
+    elseif evt.type == "thinking_level_changed" then
       panel.update_winbar(host.state)
     end
   end)

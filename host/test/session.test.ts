@@ -11,6 +11,17 @@ function fakeSession(overrides: Record<string, unknown>): AgentSession {
     sessionId: "test-id",
     sessionFile: undefined,
     messages: [],
+    getSessionStats: () => ({
+      sessionFile: undefined,
+      sessionId: "test-id",
+      userMessages: 0,
+      assistantMessages: 0,
+      toolCalls: 0,
+      toolResults: 0,
+      totalMessages: 0,
+      tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      cost: 0,
+    }),
     ...overrides,
   } as unknown as AgentSession;
 }
@@ -24,6 +35,7 @@ describe("buildState", () => {
       sessionId: "test-id",
       sessionFile: undefined,
       messageCount: 0,
+      stats: { totalTokens: 0, cost: 0, contextPercent: null },
     });
   });
 
@@ -35,6 +47,18 @@ describe("buildState", () => {
         isStreaming: true,
         sessionFile: "/tmp/session.jsonl",
         messages: [{}, {}, {}],
+        getSessionStats: () => ({
+          sessionFile: "/tmp/session.jsonl",
+          sessionId: "test-id",
+          userMessages: 2,
+          assistantMessages: 1,
+          toolCalls: 0,
+          toolResults: 0,
+          totalMessages: 3,
+          tokens: { input: 900, output: 100, cacheRead: 0, cacheWrite: 0, total: 1000 },
+          cost: 0.0042,
+          contextUsage: { tokens: 1000, contextWindow: 200000, percent: 30 },
+        }),
       }),
     );
     expect(state.model).toEqual({ provider: "zai", id: "glm-5.2", name: "GLM-5.2" });
@@ -42,6 +66,7 @@ describe("buildState", () => {
     expect(state.isStreaming).toBe(true);
     expect(state.sessionFile).toBe("/tmp/session.jsonl");
     expect(state.messageCount).toBe(3);
+    expect(state.stats).toEqual({ totalTokens: 1000, cost: 0.0042, contextPercent: 30 });
   });
 });
 
