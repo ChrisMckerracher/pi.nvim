@@ -18,9 +18,13 @@ skills, and sessions all carry over.
 
 ## Status
 
-**Phase 0** — scaffold and protocol handshake. See
-[design doc](docs/architecture/design/001-sdk-host-nvim-embedding.md) for the
-plan and [ADRs](docs/architecture/adr/) for locked decisions.
+**Phase 1 (host core done — Lua sidebar next).** The host boots pi's SDK
+against the real `~/.pi/agent`, serves protocol commands
+(prompt/steer/follow_up/abort/new_session/cycle_thinking), and streams agent
+events. Validate with `make smoke` (ADR-003, one near-free prompt).
+
+See [design doc](docs/architecture/design/001-sdk-host-nvim-embedding.md) for
+the plan and [ADRs](docs/architecture/adr/) for locked decisions.
 
 ## Commands
 

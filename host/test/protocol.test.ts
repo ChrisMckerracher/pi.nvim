@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { PROTOCOL_VERSION, createLineSplitter, encode, parseCommand } from "../src/protocol.js";
+import {
+  PROTOCOL_VERSION,
+  createLineSplitter,
+  encode,
+  parseCommand,
+  requireMessage,
+} from "../src/protocol.js";
 
 describe("protocol framing", () => {
   it("splits records on LF across arbitrary chunk boundaries", () => {
@@ -42,5 +48,11 @@ describe("protocol framing", () => {
   it("parseCommand rejects non-command JSON with a clear error", () => {
     expect(() => parseCommand("[1,2,3]")).toThrow(/'type' field/);
     expect(() => parseCommand('"hello"')).toThrow(/'type' field/);
+  });
+
+  it("requireMessage extracts a valid message and rejects missing ones", () => {
+    expect(requireMessage({ type: "prompt", message: "hi" })).toBe("hi");
+    expect(() => requireMessage({ type: "prompt", message: "" })).toThrow(/message/);
+    expect(() => requireMessage({ type: "abort" })).toThrow(/message/);
   });
 });

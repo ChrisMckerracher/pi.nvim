@@ -32,7 +32,9 @@ if (extensionsResult.errors.length > 0) {
 
 console.log(
   "\nmodel:",
-  session.model ? `${session.model.provider}/${session.model.id} (${session.model.name})` : "(none)",
+  session.model
+    ? `${session.model.provider}/${session.model.id} (${session.model.name})`
+    : "(none)",
 );
 console.log("thinkingLevel (smoke override):", session.thinkingLevel);
 if (modelFallbackMessage) console.log("model fallback:", modelFallbackMessage);

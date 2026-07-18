@@ -54,7 +54,10 @@ export interface HostState {
 }
 
 /** Events the host synthesizes itself (not forwarded from the SDK). */
-export type HostSyntheticEvent = { type: "host_error"; message: string };
+export interface HostSyntheticEvent {
+  type: "host_error";
+  message: string;
+}
 
 /**
  * An agent event forwarded from the pi SDK. Shapes are owned by the SDK
@@ -99,7 +102,12 @@ export function createLineSplitter(onLine: (line: string) => void): (chunk: stri
 /** Parse one JSONL record into a command, or throw with a clear boundary error. */
 export function parseCommand(line: string): Command {
   const parsed: unknown = JSON.parse(line);
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed) || !("type" in parsed)) {
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    Array.isArray(parsed) ||
+    !("type" in parsed)
+  ) {
     throw new Error("Invalid command: expected an object with a 'type' field");
   }
   return parsed as Command;

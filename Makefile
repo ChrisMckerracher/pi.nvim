@@ -22,4 +22,11 @@ endif
 test:
 	npm test --prefix $(HOST)
 
+# Validate the real ~/.pi/agent config boots under the SDK (ADR-003).
+# Costs one near-free prompt (thinking off); uses an in-memory session.
+smoke:
+	npx tsc $(HOST)/scripts/smoke.ts --ignoreConfig --outDir $(HOST)/.smoke --module NodeNext --moduleResolution NodeNext --target ES2023 --skipLibCheck
+	node $(HOST)/.smoke/smoke.js
+	rm -rf $(HOST)/.smoke
+
 check: lint test build
