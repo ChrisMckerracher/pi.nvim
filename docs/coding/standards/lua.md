@@ -1,5 +1,6 @@
 # Authorship
 - 2026-07-18 00:55 — agent: pi (k3) (initial standard — Lua counterpart to pocket's python.md, mirrored structure and numbering spirit)
+- 2026-07-18 02:40 — agent: pi (k3) (rules 9-10 added after human UX corrections: read-only transcript buffers, visible working affordance)
 
 # Lua Standards
 
@@ -13,6 +14,8 @@ Applies to `lua/`, `plugin/`, `tests/`.
 6. Keep side effects (job control, buffer/window mutation) in dedicated owner modules — `host.lua` owns the job process, `chat.lua` owns sidebar buffers — not scattered through domain logic.
 7. Never mutate UI state directly from a job callback's fast event context; route through `vim.schedule`.
 8. Use domain-specific helper names rather than generic `do` / `handle` patterns.
+9. Display buffers that hold transcripts, logs, or results are read-only: `modifiable = false`, with a `with_modifiable` wrapper for the owning module's own writes. Do not add `readonly` to scratch buffers — it W10-warns on our own writes. Editable buffers exist only where the user is meant to type.
+10. Every long-running or async operation shows a visible affordance while in flight (spinner, winbar state, or status note) and a clear end state. Silent waiting is a bug.
 
 ## Project Layout
 

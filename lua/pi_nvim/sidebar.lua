@@ -54,6 +54,8 @@ function M.open()
   vim.api.nvim_win_set_buf(M.chat_win, chat_buf)
   dress_window(M.chat_win)
   vim.wo[M.chat_win].winfixheight = false
+  -- The chat pane is a read-only transcript; q dismisses the sidebar.
+  vim.keymap.set("n", "q", M.close, { buffer = chat_buf, desc = "Close pi sidebar" })
 
   vim.cmd "belowright split"
   M.input_win = vim.api.nvim_get_current_win()

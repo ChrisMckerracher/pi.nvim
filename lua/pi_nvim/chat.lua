@@ -1,12 +1,18 @@
 --- Chat rendering: the sidebar's message buffer. Owns all chat-buffer
 --- mutations (engineering rule 1). Renders the forwarded SDK event stream:
 --- assistant text/thinking deltas, tool calls and results, lifecycle notes.
+---
+--- The buffer is READ-ONLY for the user (modifiable=false) — chat history is
+--- a transcript, not a document. Our own renders unlock it transiently via
+--- with_modifiable().
 local M = {
   ---@type integer|nil
   buf = nil,
   ns = vim.api.nvim_create_namespace "pi_nvim_chat",
+  spinner_ns = vim.api.nvim_create_namespace "pi_nvim_spinner",
   ---@type PiNvimConfig|nil
   _cfg = nil,
+  _spinner = { timer = nil, frame = 1, mark = nil },
 }
 
 ---@param cfg PiNvimConfig
@@ -18,6 +24,7 @@ function M.setup(cfg)
   vim.api.nvim_set_hl(0, "PiNvimThinking", { link = "Comment", default = true })
   vim.api.nvim_set_hl(0, "PiNvimNote", { link = "Comment", default = true })
   vim.api.nvim_set_hl(0, "PiNvimError", { link = "ErrorMsg", default = true })
+  vim.api.nvim_set_hl(0, "PiNvimSpinner", { link = "Statement", default = true })
 end
 
 ---@return integer
@@ -28,7 +35,19 @@ function M.ensure_buf()
   vim.bo[M.buf].bufhidden = "hide"
   vim.bo[M.buf].swapfile = false
   vim.bo[M.buf].filetype = "markdown"
+  -- Chat history is a transcript: read-only for the user (see header note).
+  -- (No `readonly`: it would W10-warn on our own transient-unlock writes.)
+  vim.bo[M.buf].modifiable = false
   return M.buf
+end
+
+--- Run fn with the buffer transiently modifiable, always re-locking after.
+---@param fn fun()
+local function with_modifiable(fn)
+  vim.bo[M.buf].modifiable = true
+  local ok, err = pcall(fn)
+  vim.bo[M.buf].modifiable = false
+  if not ok then error(err) end
 end
 
 --- Highlight a line range with a group.
@@ -53,7 +72,7 @@ function M.append_lines(lines, hl)
     lines = vim.list_slice(lines, 2)
     if #lines == 0 then return end
   end
-  vim.api.nvim_buf_set_lines(M.buf, count, count, false, lines)
+  with_modifiable(function() vim.api.nvim_buf_set_lines(M.buf, count, count, false, lines) end)
   hl_lines(count, count + #lines, hl)
 end
 
@@ -68,7 +87,7 @@ function M.append_text(text, hl)
   for i = 2, #segments do
     replacement[#replacement + 1] = segments[i]
   end
-  vim.api.nvim_buf_set_lines(M.buf, count - 1, count, false, replacement)
+  with_modifiable(function() vim.api.nvim_buf_set_lines(M.buf, count - 1, count, false, replacement) end)
   hl_lines(count - 1, count - 1 + #replacement, hl)
 end
 
@@ -143,7 +162,11 @@ function M.event(evt)
   M.ensure_buf()
   local t = evt.type
 
-  if t == "message_start" then
+  if t == "agent_start" then
+    M.start_spinner()
+  elseif t == "agent_settled" then
+    M.stop_spinner()
+  elseif t == "message_start" then
     local msg = evt.message
     if type(msg) == "table" and msg.role == "assistant" then M.header "Pi" end
   elseif t == "message_update" then
@@ -178,6 +201,7 @@ function M.event(evt)
   elseif t == "auto_retry_start" then
     M.note(("retrying (attempt %s)…"):format(tostring(evt.attempt)))
   elseif t == "host_error" then
+    M.stop_spinner()
     M.show_error(tostring(evt.message))
   end
 
@@ -193,6 +217,50 @@ function M.scroll_to_bottom()
     local cursor = vim.api.nvim_win_get_cursor(win)
     if cursor[1] >= count - 10 then pcall(vim.api.nvim_win_set_cursor, win, { count, 0 }) end
   end
+end
+
+-- ---------------------------------------------------------------------------
+-- Spinner: animated working indicator while the agent runs (agent_start →
+-- agent_settled). Rendered as a virtual line below the last buffer line so
+-- it never interferes with streamed content.
+-- ---------------------------------------------------------------------------
+
+local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
+
+function M.start_spinner()
+  if M._spinner.timer then return end
+  M.ensure_buf()
+  local timer = vim.uv.new_timer()
+  M._spinner.timer = timer
+  timer:start(0, 90, vim.schedule_wrap(function() M._render_spinner() end))
+end
+
+function M._render_spinner()
+  local s = M._spinner
+  if not (M.buf and vim.api.nvim_buf_is_valid(M.buf)) then
+    M.stop_spinner()
+    return
+  end
+  if s.mark then pcall(vim.api.nvim_buf_del_extmark, M.buf, M.spinner_ns, s.mark) end
+  local count = vim.api.nvim_buf_line_count(M.buf)
+  s.mark = vim.api.nvim_buf_set_extmark(M.buf, M.spinner_ns, count - 1, 0, {
+    virt_lines = { { { " " .. SPINNER_FRAMES[s.frame] .. " pi is working…  (<leader>ax aborts)", "PiNvimSpinner" } } },
+  })
+  s.frame = (s.frame % #SPINNER_FRAMES) + 1
+end
+
+function M.stop_spinner()
+  local s = M._spinner
+  if s.timer then
+    s.timer:stop()
+    s.timer:close()
+    s.timer = nil
+  end
+  if s.mark and M.buf and vim.api.nvim_buf_is_valid(M.buf) then
+    pcall(vim.api.nvim_buf_del_extmark, M.buf, M.spinner_ns, s.mark)
+  end
+  s.mark = nil
+  s.frame = 1
 end
 
 ---@param msg table
@@ -216,7 +284,7 @@ end
 ---@param messages unknown
 function M.replay(messages)
   M.ensure_buf()
-  vim.api.nvim_buf_set_lines(M.buf, 0, -1, false, { "" })
+  with_modifiable(function() vim.api.nvim_buf_set_lines(M.buf, 0, -1, false, { "" }) end)
   if type(messages) ~= "table" then return end
   for _, msg in ipairs(messages) do
     if type(msg) == "table" then
