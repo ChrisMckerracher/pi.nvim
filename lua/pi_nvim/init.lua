@@ -208,6 +208,7 @@ function M.setup(opts)
   M._cfg = cfg
 
   chat.setup(cfg)
+  context.setup()
   input.setup(cfg, M._send, {
     on_close = function() panel.close() end,
     scroll = function(direction) panel.scroll_chat(direction) end,
@@ -235,6 +236,13 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("PiResume", function() M.resume_session() end, { desc = "Resume pi session" })
   vim.api.nvim_create_user_command("PiReview", function() M.review_changes() end, { desc = "Review pi changes" })
   vim.api.nvim_create_user_command("PiAbort", function() M.abort() end, { desc = "Abort pi agent run" })
+
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = vim.api.nvim_create_augroup("PiNvimShutdown", { clear = true }),
+    callback = function()
+      if M._host then M._host:stop() end
+    end,
+  })
 
   if cfg.keymaps then
     local map = vim.keymap.set

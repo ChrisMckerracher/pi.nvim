@@ -83,15 +83,19 @@ end
 
 ---@param lines string[]
 ---@param hl string|nil
+---@param lines string[]
+---@param hl string|nil
+---@return integer start_lnum 0-indexed line where the first line landed
 function M.append_lines(lines, hl)
-  if #lines == 0 then return end
+  if #lines == 0 then return vim.api.nvim_buf_line_count(M.buf) end
   local count = vim.api.nvim_buf_line_count(M.buf)
   if count == 1 and vim.api.nvim_buf_get_lines(M.buf, 0, 1, false)[1] == "" and lines[1] == "" then
     lines = vim.list_slice(lines, 2)
-    if #lines == 0 then return end
+    if #lines == 0 then return count end
   end
   with_modifiable(function() vim.api.nvim_buf_set_lines(M.buf, count, count, false, lines) end)
   hl_lines(count, count + #lines, hl)
+  return count
 end
 
 ---@param text string
@@ -109,11 +113,12 @@ function M.append_text(text, hl)
 end
 
 --- Role separator: a clean rule line, not a markdown header. Trailing blank
---- line keeps streamed text off the rule itself.
+--- line keeps streamed text off the rule itself; only the rule is tinted.
 ---@param role "You"|"Pi"
 local function separator(role)
   local hl = role == "You" and "PiNvimUserHeader" or "PiNvimPiHeader"
-  M.append_lines({ "", ("── %s "):format(role) .. string.rep("─", 20), "" }, hl)
+  local start = M.append_lines { "", ("── %s "):format(role) .. string.rep("─", 20), "" }
+  hl_lines(start + 1, start + 2, hl)
 end
 
 --- Locally echo what the user sent (the SDK does not re-emit user messages
@@ -180,7 +185,7 @@ end
 function M._restyle()
   local count = vim.api.nvim_buf_line_count(M.buf)
   local from = math.max(0, count - 300)
-  vim.api.nvim_buf_clear_namespace(M.buf, M.style_ns, from, -1)
+  vim.api.nvim_buf_clear_namespace(M.buf, M.style_ns, 0, -1)
   local lines = vim.api.nvim_buf_get_lines(M.buf, from, count, false)
   local in_code = false
   for i, line in ipairs(lines) do

@@ -20,6 +20,8 @@ local protocol = require "pi_nvim.protocol"
 ---@field _callbacks table<string, fun(resp:table)>
 ---@field _listeners fun(evt:table)[]
 ---@field _intentional_exit boolean
+---@field _starting boolean
+---@field _start_waiters fun(ok:boolean, err:string|nil)[]
 local Host = {}
 Host.__index = Host
 
@@ -42,6 +44,8 @@ function Host.new(cfg)
     _callbacks = {},
     _listeners = {},
     _intentional_exit = false,
+    _starting = false,
+    _start_waiters = {},
   }, Host)
 end
 
@@ -65,11 +69,16 @@ function Host:_emit(evt)
   end
 end
 
---- Spawn the host and perform the protocol handshake.
+--- Spawn the host and perform the protocol handshake. Concurrent callers
+--- queue on the same boot instead of spawning duplicate jobs.
 ---@param cb fun(ok:boolean, err:string|nil)
 function Host:start(cb)
   if self.job then
     cb(true)
+    return
+  end
+  if self._starting then
+    table.insert(self._start_waiters, cb)
     return
   end
   local cmd = self.cfg.host_cmd
@@ -80,6 +89,25 @@ function Host:start(cb)
   if cmd[2] and vim.fn.filereadable(cmd[2]) == 0 then
     cb(false, "host not built: " .. cmd[2] .. " (run `make build` in the pi.nvim repo)")
     return
+  end
+
+  self._starting = true
+  self._start_waiters = { cb }
+
+  --- Finish boot: notify all waiters exactly once; clean up a failed job.
+  ---@param ok boolean
+  ---@param err string|nil
+  local finish = function(ok, err)
+    local waiters = self._start_waiters
+    self._start_waiters = {}
+    self._starting = false
+    if not ok then
+      if self.job then pcall(vim.fn.jobstop, self.job) end
+      self.job = nil
+    end
+    for _, waiter in ipairs(waiters) do
+      waiter(ok, err)
+    end
   end
 
   self._intentional_exit = false
@@ -104,22 +132,22 @@ function Host:start(cb)
 
   if self.job <= 0 then
     self.job = nil
-    cb(false, "jobstart failed for: " .. table.concat(cmd, " "))
+    finish(false, "jobstart failed for: " .. table.concat(cmd, " "))
     return
   end
 
   self:request("hello", {}, function(resp)
     if not resp.success then
-      cb(false, resp.error or "hello failed")
+      finish(false, resp.error or "hello failed")
       return
     end
     local data = resp.data or {}
     if data.protocol ~= protocol.version then
-      cb(false, ("protocol mismatch: plugin v%d, host v%s"):format(protocol.version, tostring(data.protocol)))
+      finish(false, ("protocol mismatch: plugin v%d, host v%s"):format(protocol.version, tostring(data.protocol)))
       return
     end
     self.state = data.state or self.state
-    cb(true)
+    finish(true)
   end)
 end
 

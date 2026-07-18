@@ -14,6 +14,39 @@ local M = {}
 ---@type PiPendingContext|nil
 M.pending = nil
 
+--- Last normal (code) buffer the user was in. The panel's scratch buffers
+--- never count — the [editor] block must describe the user's code, not the
+--- panel the cursor is sitting in when they hit send.
+---@type integer|nil
+M._last_code_buf = nil
+
+--- Track the last code buffer (called once from init setup).
+function M.setup()
+  local group = vim.api.nvim_create_augroup("PiNvimContext", { clear = true })
+  vim.api.nvim_create_autocmd("BufEnter", {
+    group = group,
+    callback = function(args)
+      if vim.bo[args.buf].buftype == "" then M._last_code_buf = args.buf end
+    end,
+  })
+end
+
+--- The buffer the context block should describe.
+---@return integer
+local function target_buf()
+  if M._last_code_buf and vim.api.nvim_buf_is_valid(M._last_code_buf) then return M._last_code_buf end
+  return vim.api.nvim_get_current_buf()
+end
+
+--- Cursor position in the window showing buf (best effort).
+---@param buf integer
+---@return integer[]
+local function buf_cursor(buf)
+  local wins = vim.fn.win_findbuf(buf)
+  if #wins > 0 then return vim.api.nvim_win_get_cursor(wins[1]) end
+  return { 1, 0 }
+end
+
 --- cwd-relative when possible (":." falls back to absolute outside cwd).
 ---@param path string
 ---@return string
@@ -98,9 +131,9 @@ end
 --- Compact one-block editor state attached to every prompt (push model).
 ---@return string
 function M.editor_state()
-  local bufnr = vim.api.nvim_get_current_buf()
+  local bufnr = target_buf()
   local path = relpath(vim.api.nvim_buf_get_name(bufnr))
-  local cursor = vim.api.nvim_win_get_cursor(0)
+  local cursor = buf_cursor(bufnr)
   local lines = { ("file: %s, line %d"):format(path, cursor[1]) }
   local diags = diagnostics_summary(bufnr, 5)
   if diags then lines[#lines + 1] = "diagnostics:\n" .. diags end
@@ -111,9 +144,9 @@ end
 --- (ADR-005). Runs in arbitrary contexts — must not fail, must be fast.
 ---@return string
 function M.editor_state_full()
-  local bufnr = vim.api.nvim_get_current_buf()
+  local bufnr = target_buf()
   local path = relpath(vim.api.nvim_buf_get_name(bufnr))
-  local cursor = vim.api.nvim_win_get_cursor(0)
+  local cursor = buf_cursor(bufnr)
   local parts = {
     ("cwd: %s"):format(vim.uv.cwd() or "?"),
     ("current file: %s (line %d, col %d)"):format(path, cursor[1], cursor[2] + 1),

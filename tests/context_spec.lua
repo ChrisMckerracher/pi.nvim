@@ -46,4 +46,14 @@ describe("context", function()
     assert.truthy(message:find("fix this", 1, true))
     assert.is_nil(context.pending)
   end)
+
+  it("describes the last code buffer, not the panel input (regression)", function()
+    local code_buf = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_buf_set_name(code_buf, (vim.uv.cwd() or "") .. "/fake-code.lua")
+    context._last_code_buf = code_buf
+    local state = context.editor_state()
+    assert.truthy(state:find "fake%-code%.lua")
+    context._last_code_buf = nil
+    vim.api.nvim_buf_delete(code_buf, { force = true })
+  end)
 end)
