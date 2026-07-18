@@ -18,10 +18,16 @@ skills, and sessions all carry over.
 
 ## Status
 
-**Phase 1 (host core done — Lua sidebar next).** The host boots pi's SDK
-against the real `~/.pi/agent`, serves protocol commands
-(prompt/steer/follow_up/abort/new_session/cycle_thinking), and streams agent
-events. Validate with `make smoke` (ADR-003, one near-free prompt).
+**Phases 0–4 implemented (v1).** The host boots pi's SDK against the real
+`~/.pi/agent`; the Neovim plugin provides the chat sidebar, context push,
+inline edit, patch-based diff review, and session resume — verified by
+`make check` (13 TS + 14 Lua tests) and `make e2e` (real nvim + real config).
+Install into Neovim with a lazy.nvim `dir` spec (see below).
+
+```lua
+{ "pi.nvim", dir = "~/Code/pi.nvim", main = "pi_nvim", lazy = false,
+  build = "make build", opts = {} }
+```
 
 See [design doc](docs/architecture/design/001-sdk-host-nvim-embedding.md) for
 the plan and [ADRs](docs/architecture/adr/) for locked decisions.

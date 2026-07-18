@@ -19,8 +19,15 @@ else
 	@echo "selene not installed; skipping (cargo install selene)"
 endif
 
+NVIM ?= nvim
+
 test:
 	npm test --prefix $(HOST)
+	$(NVIM) --headless -u tests/minimal_init.lua -c "PlenaryBustedDirectory tests/ { minimal_init = 'tests/minimal_init.lua' }"
+
+# Headless full-stack E2E: real host boot in real nvim (no LLM calls).
+e2e:
+	$(NVIM) --headless -u tests/minimal_init.lua -l tests/e2e.lua
 
 # Validate the real ~/.pi/agent config boots under the SDK (ADR-003).
 # Costs one near-free prompt (thinking off); uses an in-memory session.

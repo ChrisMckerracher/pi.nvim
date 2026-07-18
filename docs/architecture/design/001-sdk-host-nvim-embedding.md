@@ -1,5 +1,6 @@
 # Authorship
 - 2026-07-18 00:55 — collaborative: Christopher McKerracher + pi (k3) (initial design — polished from [iteration/001](../iteration/001-cursor-like-nvim-with-embedded-pi.md); implements ADR-001..004)
+- 2026-07-18 02:10 — agent: pi (k3) (phases 0–4 implemented: protocol v2 (ADR-005), host + Lua plugin shipped; phase table marked done; message composition moved client-side)
 
 # Design 001: SDK Host + Lua Frontend for Neovim Embedding
 
@@ -108,11 +109,19 @@ for drifted tracked files).
 
 | Phase | Deliverable | Verification |
 |-------|-------------|--------------|
-| 0 | Repo, standards tooling, protocol v1 types, hello-world host | `make check` green; `node host/dist/main.js` answers `hello` |
-| 1 | Core chat: SDK runtime in host, sidebar streaming render, input box, send/abort, model/thinking/token footer, `<space>a` toggle, `:checkhealth pi_nvim` | chat round-trip in nvim; session file appears in `~/.pi/agent/sessions/` |
-| 2 | Context push, `<space>as` send selection, `<space>ak` inline edit, `@file` completion in input | agent references selection without pasting |
-| 3 | Review loop: changes list, native diff, accept/reject per ADR-004, `<space>ad` | agent edit → diff → reject restores file |
-| 4 | Sessions (picker/new/switch, resume per project), statusline segment, `editor_context` pull tool, docs finalization | resume picker lists CLI + nvim sessions |
+| 0 ✅ | Repo, standards tooling, protocol v1 types, hello-world host | `make check` green; `node host/dist/main.js` answers `hello` |
+| 1 ✅ | Core chat: SDK runtime in host, sidebar streaming render, input box, send/abort, model/thinking/token footer, `<space>a` toggle, `:checkhealth pi_nvim` | `make e2e` green (real nvim + real config) |
+| 2 ✅ | Context push, `<space>as` send selection, `<space>ak` inline edit, `@file` expansion | Lua specs green (`make test`) |
+| 3 ✅ | Review loop: changes list, native diff, accept/reject per ADR-004, `<space>ad` | diff specs green; reverse-patch mirror safety |
+| 4 ✅ | Sessions (picker/new/switch, resume), winbar status, `editor_context` pull tool (ADR-005), docs | `list_sessions` e2e green vs pocket store |
+
+Implementation notes that refine the sketch above:
+- Protocol is v2 (ADR-005): adds `list_sessions` / `switch_session` /
+  `get_messages` and the host-initiated `editor_context` sub-channel.
+- Message composition moved fully client-side (Lua composes context blocks +
+  `@file` expansions; `prompt` carries one `message` string).
+- Status chrome landed as the chat window's winbar (model · thinking ·
+  streaming) instead of a statusline component — zero user-config surgery.
 
 Each phase ships working software + tests + `KEYBINDINGS.md` update.
 
