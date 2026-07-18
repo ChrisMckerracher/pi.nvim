@@ -32,6 +32,25 @@ Install into Neovim with a lazy.nvim `dir` spec (see below).
 See [design doc](docs/architecture/design/001-sdk-host-nvim-embedding.md) for
 the plan and [ADRs](docs/architecture/adr/) for locked decisions.
 
+## Quickstart
+
+Open any project in Neovim and press `<space>a`. The panel docks to the
+right — chat above (read-only, non-focusable), input below. Type, `<CR>`
+sends. The first open boots the host (~5s, once).
+
+| Key | Action |
+|-----|--------|
+| `<space>a` | Toggle panel |
+| `<space>as` / `<space>af` | Send selection / current file (visual/normal) |
+| `<space>ak` | Inline edit selection (visual) |
+| `<space>ad` / `<space>aD` | Review agent changes (diff) / reject (revert) |
+| `<space>an` / `<space>ar` | New session / resume picker (CLI sessions too) |
+| `<space>am` / `<space>at` | Pick model / cycle thinking level |
+| `<space>ax` | Abort agent run |
+
+In the input: `<CR>` sends, `<C-j>` newline, `@path` attaches a file,
+`<C-d>`/`<C-u>` scrolls the chat, `<Esc>` closes the panel.
+
 ## Commands
 
 ```bash
