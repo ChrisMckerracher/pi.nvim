@@ -75,7 +75,7 @@ end
 ---@param text string
 ---@return string
 local function fit_width(text)
-  local width = M._cfg.width
+  local width = require("pi_nvim.config").resolve_width(M._cfg)
   local wins = M.buf and vim.fn.win_findbuf(M.buf) or {}
   if #wins > 0 then width = vim.api.nvim_win_get_width(wins[1]) end
   if #text <= width - 2 then return text end

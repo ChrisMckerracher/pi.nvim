@@ -37,7 +37,9 @@ end
 
 --- Panel width capped so the editor always keeps at least half the screen.
 ---@return integer
-local function panel_width() return math.min(M._cfg.width, math.floor(vim.o.columns * 0.5)) end
+--- Panel width in columns (fraction or absolute, clamped — config.lua).
+---@return integer
+local function panel_width() return require("pi_nvim.config").resolve_width(M._cfg) end
 
 ---@return integer chat_text_height, integer chat_row, integer input_row
 local function layout_rows()

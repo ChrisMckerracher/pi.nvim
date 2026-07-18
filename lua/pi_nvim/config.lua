@@ -1,6 +1,6 @@
 --- pi_nvim configuration: defaults + boundary validation (lua.md rule 5).
 ---@class PiNvimConfig
----@field width integer Sidebar width in columns
+---@field width number Panel width: fraction of columns (0 < width < 1) or absolute columns
 ---@field input_height integer Input window height in lines
 ---@field host_cmd string[] Command used to spawn the pi.nvim host
 ---@field auto_scroll boolean Keep the chat pinned to the bottom while streaming
@@ -22,7 +22,7 @@ end
 ---@return PiNvimConfig
 function M.defaults()
   return {
-    width = 42,
+    width = 0.32, -- fraction of columns, clamped [24, 54] (small screen ↔ 1440p)
     input_height = 6,
     host_cmd = { "node", repo_root() .. "/host/dist/main.js" },
     auto_scroll = true,
@@ -63,6 +63,7 @@ function M.validate(cfg)
     end
   end
   expect("width", cfg.width, "number")
+  if cfg.width <= 0 then error("pi_nvim config: width must be positive", 3) end
   expect("input_height", cfg.input_height, "number")
   expect("host_cmd", cfg.host_cmd, "table")
   expect("host_cmd[1]", cfg.host_cmd[1], "string")
@@ -74,6 +75,14 @@ function M.validate(cfg)
   expect("keymaps", cfg.keymaps, "boolean")
   expect("working_messages", cfg.working_messages, "table")
   if #cfg.working_messages == 0 then error("pi_nvim config: working_messages must not be empty", 3) end
+end
+
+--- Resolve the configured width to concrete columns for the current editor.
+---@param cfg PiNvimConfig
+---@return integer
+function M.resolve_width(cfg)
+  if cfg.width < 1 then return math.max(24, math.min(54, math.floor(vim.o.columns * cfg.width))) end
+  return math.min(math.floor(cfg.width), math.floor(vim.o.columns * 0.5))
 end
 
 return M
