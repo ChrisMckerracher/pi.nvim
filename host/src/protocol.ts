@@ -1,0 +1,114 @@
+/**
+ * Protocol v1 — versioned JSONL framing between the Neovim Lua frontend and
+ * this host. This file is the source of truth for both sides (ADR-002).
+ *
+ * Framing discipline (mirrors pi's RPC mode): records are delimited by LF
+ * only. Split on "\n" exclusively — never on Unicode line/paragraph
+ * separators (U+2028/U+2029), which are valid inside JSON strings.
+ *
+ * Event modeling note: agent events produced by the pi SDK are FORWARDED,
+ * not remodeled (same choice as pi's own RPC mode). Their wire type is
+ * `ForwardedEvent` — consumers narrow by `type`. Commands, responses, and
+ * host-synthetic events are fully modeled below.
+ */
+
+export const PROTOCOL_VERSION = 1 as const;
+
+// ---------------------------------------------------------------------------
+// Commands (nvim → host)
+// ---------------------------------------------------------------------------
+
+export type Command =
+  | { id?: string; type: "hello" }
+  | { id?: string; type: "prompt"; message: string }
+  | { id?: string; type: "steer"; message: string }
+  | { id?: string; type: "follow_up"; message: string }
+  | { id?: string; type: "abort" }
+  | { id?: string; type: "get_state" }
+  | { id?: string; type: "new_session" }
+  | { id?: string; type: "cycle_thinking" }
+  | { id?: string; type: "dispose" };
+
+// ---------------------------------------------------------------------------
+// Responses and events (host → nvim)
+// ---------------------------------------------------------------------------
+
+/** Responses correlate to a command by id. */
+export interface Response {
+  id?: string;
+  type: "response";
+  command: string;
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
+
+/** State snapshot returned by `hello` and `get_state`, and after `new_session`. */
+export interface HostState {
+  model: { provider: string; id: string; name: string } | null;
+  thinkingLevel: string;
+  isStreaming: boolean;
+  sessionId: string;
+  sessionFile: string | undefined;
+  messageCount: number;
+}
+
+/** Events the host synthesizes itself (not forwarded from the SDK). */
+export type HostSyntheticEvent = { type: "host_error"; message: string };
+
+/**
+ * An agent event forwarded from the pi SDK. Shapes are owned by the SDK
+ * (`AgentSessionEvent`); the Lua side narrows by `type`. Forwarded verbatim —
+ * see the modeling note at the top of this file.
+ */
+export interface ForwardedEvent {
+  type: string;
+  [key: string]: unknown;
+}
+
+export type OutboundMessage = Response | HostSyntheticEvent | ForwardedEvent;
+
+// ---------------------------------------------------------------------------
+// Framing
+// ---------------------------------------------------------------------------
+
+/** Encode one outbound message as a single LF-terminated JSONL record. */
+export function encode(message: OutboundMessage): string {
+  return JSON.stringify(message) + "\n";
+}
+
+/**
+ * Incremental splitter for LF-delimited JSONL over arbitrary chunk
+ * boundaries. Strips a single trailing CR per record (accepts CRLF input).
+ */
+export function createLineSplitter(onLine: (line: string) => void): (chunk: string) => void {
+  let buffer = "";
+  return (chunk: string): void => {
+    buffer += chunk;
+    for (;;) {
+      const newlineIndex = buffer.indexOf("\n");
+      if (newlineIndex === -1) return;
+      let line = buffer.slice(0, newlineIndex);
+      buffer = buffer.slice(newlineIndex + 1);
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      onLine(line);
+    }
+  };
+}
+
+/** Parse one JSONL record into a command, or throw with a clear boundary error. */
+export function parseCommand(line: string): Command {
+  const parsed: unknown = JSON.parse(line);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed) || !("type" in parsed)) {
+    throw new Error("Invalid command: expected an object with a 'type' field");
+  }
+  return parsed as Command;
+}
+
+/** Narrow a parsed command to a specific command type, or throw. */
+export function requireMessage(command: Command): string {
+  if (!("message" in command) || typeof command.message !== "string" || command.message === "") {
+    throw new Error(`Command '${command.type}' requires a non-empty 'message' field`);
+  }
+  return command.message;
+}
