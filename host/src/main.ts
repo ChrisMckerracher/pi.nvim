@@ -75,6 +75,24 @@ async function dispatch(host: AgentHost, command: Command): Promise<Response | n
       }
       case "get_messages":
         return reply(command, { success: true, data: host.getMessages() });
+      case "list_models":
+        return reply(command, { success: true, data: await host.listModels() });
+      case "set_model": {
+        if (
+          !("provider" in command) ||
+          typeof command.provider !== "string" ||
+          !("modelId" in command) ||
+          typeof command.modelId !== "string"
+        ) {
+          throw new Error("Command 'set_model' requires 'provider' and 'modelId' strings");
+        }
+        return reply(command, {
+          success: true,
+          data: await host.setModel(command.provider, command.modelId),
+        });
+      }
+      case "cycle_model":
+        return reply(command, { success: true, data: await host.cycleModel() });
       case "editor_context_response": {
         const delivered = host.resolveEditorContext(command.requestId, command.context);
         return reply(command, {

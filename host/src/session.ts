@@ -19,7 +19,36 @@ import {
 import { Type } from "typebox";
 
 import { EditorContextBroker } from "./context-broker.js";
-import type { ForwardedEvent, HostState, HostSyntheticEvent, SessionListItem } from "./protocol.js";
+import type {
+  ForwardedEvent,
+  HostState,
+  HostSyntheticEvent,
+  ModelListItem,
+  SessionListItem,
+} from "./protocol.js";
+
+/** Minimal model shape the wire needs (structurally satisfied by SDK Models). */
+interface ModelSummary {
+  provider: string;
+  id: string;
+  name: string;
+  contextWindow?: number;
+}
+
+/** Map the model catalog to wire items, marking the session's active model. */
+export function mapModelList(
+  models: readonly ModelSummary[],
+  current: ModelSummary | undefined,
+): ModelListItem[] {
+  return models.map((model) => ({
+    provider: model.provider,
+    id: model.id,
+    name: model.name,
+    contextWindow: model.contextWindow,
+    isCurrent:
+      current !== undefined && model.provider === current.provider && model.id === current.id,
+  }));
+}
 
 /** Anything the host may put on the wire besides command responses. */
 export type EmittedEvent = ForwardedEvent | HostSyntheticEvent;
@@ -194,6 +223,31 @@ export class AgentHost {
    */
   getMessages(limit = 50): unknown[] {
     return this.session().messages.slice(-limit);
+  }
+
+  /** List authenticated models for the model picker. */
+  async listModels(): Promise<ModelListItem[]> {
+    if (this.runtime === undefined) throw new Error("AgentHost not started");
+    const models = await this.runtime.services.modelRuntime.getAvailable();
+    return mapModelList(models, this.session().model);
+  }
+
+  /** Switch the active session's model (session-scoped; settings untouched). */
+  async setModel(provider: string, modelId: string): Promise<HostState> {
+    if (this.runtime === undefined) throw new Error("AgentHost not started");
+    const model = this.runtime.services.modelRuntime.getModel(provider, modelId);
+    if (model === undefined) throw new Error(`Model not found: ${provider}/${modelId}`);
+    await this.session().setModel(model);
+    return this.state();
+  }
+
+  /** Cycle to the next model (pi's Ctrl+P semantics). */
+  async cycleModel(): Promise<HostState> {
+    const result = await this.session().cycleModel();
+    if (result === undefined) {
+      throw new Error("Only one model available — nothing to cycle to");
+    }
+    return this.state();
   }
 
   cycleThinking(): string | undefined {

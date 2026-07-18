@@ -34,6 +34,9 @@ export type Command =
   | { id?: string; type: "list_sessions" }
   | { id?: string; type: "switch_session"; path: string }
   | { id?: string; type: "get_messages" }
+  | { id?: string; type: "list_models" }
+  | { id?: string; type: "set_model"; provider: string; modelId: string }
+  | { id?: string; type: "cycle_model" }
   | { id?: string; type: "cycle_thinking" }
   | { id?: string; type: "editor_context_response"; requestId: string; context: string }
   | { id?: string; type: "dispose" };
@@ -60,6 +63,15 @@ export interface HostState {
   sessionId: string;
   sessionFile: string | undefined;
   messageCount: number;
+}
+
+/** One entry in the model catalog for `list_models`. */
+export interface ModelListItem {
+  provider: string;
+  id: string;
+  name: string;
+  contextWindow: number | undefined;
+  isCurrent: boolean;
 }
 
 /** One entry in the session list for `list_sessions`. */

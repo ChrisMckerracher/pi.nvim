@@ -155,6 +155,35 @@ function M.resume_session()
   end)
 end
 
+--- <leader>am: pick a model for the current session (session-scoped).
+function M.pick_model()
+  M._ensure_host(function()
+    M._host:request("list_models", {}, function(resp)
+      if not resp.success then
+        vim.notify("pi: " .. (resp.error or "list_models failed"), vim.log.levels.ERROR)
+        return
+      end
+      vim.ui.select(resp.data, {
+        prompt = "Pi model",
+        format_item = function(m)
+          return (m.isCurrent and "● " or "  ") .. m.provider .. "/" .. m.id .. " — " .. (m.name or "")
+        end,
+      }, function(choice)
+        if not choice then return end
+        M._host:request("set_model", { provider = choice.provider, modelId = choice.id }, function(set_resp)
+          if not set_resp.success then
+            vim.notify("pi: " .. (set_resp.error or "set_model failed"), vim.log.levels.ERROR)
+            return
+          end
+          M._host.state = set_resp.data
+          sidebar.update_winbar(M._host.state)
+          chat.note("model → " .. choice.provider .. "/" .. choice.id)
+        end)
+      end)
+    end)
+  end)
+end
+
 --- <leader>at: cycle thinking level.
 function M.cycle_thinking()
   M._ensure_host(function()
@@ -214,6 +243,7 @@ function M.setup(opts)
     map("n", "<leader>aD", M.reject_change, { desc = "Reject pi changes (revert)" })
     map("n", "<leader>an", M.new_session, { desc = "New pi session" })
     map("n", "<leader>ar", M.resume_session, { desc = "Resume pi session" })
+    map("n", "<leader>am", M.pick_model, { desc = "Pick pi model" })
     map("n", "<leader>at", M.cycle_thinking, { desc = "Cycle pi thinking level" })
     map("n", "<leader>ax", M.abort, { desc = "Abort pi agent run" })
   end
