@@ -99,4 +99,22 @@ describe("chat buffer", function()
     chat.stop_spinner()
     assert.is_nil(chat._spinner.message)
   end)
+
+  it("pins the spinner to the window bottom with padding", function()
+    chat.replay {} -- known short content
+    local win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(win, chat.buf)
+    vim.api.nvim_win_set_height(win, 20)
+    chat.event { type = "agent_start" }
+    local shown = vim.wait(
+      2000,
+      function() return #vim.api.nvim_buf_get_extmarks(chat.buf, chat.spinner_ns, 0, -1, {}) > 0 end,
+      50
+    )
+    assert.is_true(shown)
+    local marks = vim.api.nvim_buf_get_extmarks(chat.buf, chat.spinner_ns, 0, -1, { details = true })
+    assert.equals(1, #marks)
+    assert.is_true(#marks[1][4].virt_lines > 1) -- padding lines + spinner line
+    chat.stop_spinner()
+  end)
 end)

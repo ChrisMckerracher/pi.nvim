@@ -227,9 +227,18 @@ function M._render_spinner()
   if s.mark then pcall(vim.api.nvim_buf_del_extmark, M.buf, M.spinner_ns, s.mark) end
   local count = vim.api.nvim_buf_line_count(M.buf)
   local text = fit_width(" " .. SPINNER_FRAMES[s.frame] .. " " .. (s.message or "Loading") .. "…")
-  s.mark = vim.api.nvim_buf_set_extmark(M.buf, M.spinner_ns, count - 1, 0, {
-    virt_lines = { { { text, "PiNvimSpinner" } } },
-  })
+  -- Pin to the bottom of the window: pad with empty virtual lines so the
+  -- spinner sits at the window's lower edge instead of right after content.
+  local virt = {}
+  local win = vim.fn.win_findbuf(M.buf)[1]
+  if win then
+    local padding = math.max(0, vim.api.nvim_win_get_height(win) - count - 2)
+    for _ = 1, padding do
+      virt[#virt + 1] = { { " ", "Normal" } }
+    end
+  end
+  virt[#virt + 1] = { { text, "PiNvimSpinner" } }
+  s.mark = vim.api.nvim_buf_set_extmark(M.buf, M.spinner_ns, count - 1, 0, { virt_lines = virt })
   s.frame = (s.frame % #SPINNER_FRAMES) + 1
 end
 
