@@ -23,7 +23,11 @@ NVIM ?= nvim
 
 test:
 	npm test --prefix $(HOST)
-	$(NVIM) --headless -u tests/minimal_init.lua -c "PlenaryBustedDirectory tests/ { minimal_init = 'tests/minimal_init.lua' }"
+	@for f in tests/*_spec.lua; do \
+		echo "== $$f"; \
+		$(NVIM) --headless -u tests/minimal_init.lua -c "PlenaryBustedFile $$f" >/dev/null 2>&1 || { $(NVIM) --headless -u tests/minimal_init.lua -c "PlenaryBustedFile $$f"; exit 1; }; \
+	done
+	@echo "lua specs: all files passed"
 
 # Headless full-stack E2E: real host boot in real nvim (no LLM calls).
 e2e:

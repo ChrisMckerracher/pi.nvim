@@ -54,4 +54,27 @@ describe("panel", function()
       panel.scroll_chat_edge "bottom"
     end)
   end)
+
+  it("shifts the editor on open, moves the divider on resize, restores on close", function()
+    panel.close()
+    vim.cmd "only" -- isolate from windows leaked by other spec files
+    -- Sibling shift requires 2+ normal windows (a lone window fills the grid).
+    vim.cmd "vsplit"
+    local editor_win = vim.api.nvim_get_current_win() -- rightmost split
+    vim.api.nvim_win_set_width(editor_win, 60)
+    local editor_w0 = vim.api.nvim_win_get_width(editor_win)
+
+    panel.open()
+    local chat_w = vim.api.nvim_win_get_width(panel.chat_win)
+    local editor_w1 = vim.api.nvim_win_get_width(editor_win)
+    assert.equals(editor_w0 - (chat_w + 2), editor_w1)
+
+    panel.resize(-4) -- shrink panel → editor grows by the same columns
+    assert.equals(chat_w - 4, vim.api.nvim_win_get_width(panel.chat_win))
+    assert.equals(editor_w1 + 4, vim.api.nvim_win_get_width(editor_win))
+
+    panel.close()
+    assert.equals(editor_w0, vim.api.nvim_win_get_width(editor_win))
+    vim.api.nvim_win_close(editor_win, true)
+  end)
 end)

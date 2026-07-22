@@ -69,11 +69,15 @@ function M._send(text)
   end)
 end
 
---- Toggle the sidebar (spawns the host on first open).
+--- Toggle the panel's presence vs focus: opens when closed, otherwise
+--- switches focus between editor and chat input (spawns host on first open).
 function M.toggle()
-  panel.toggle()
-  if panel.is_open() then M._ensure_host(function() end) end
+  panel.focus_switch()
+  M._ensure_host(function() end)
 end
+
+--- <leader>aq: actually close the panel (Esc in the input also works).
+function M.close_panel() panel.close() end
 
 --- <leader>as: capture visual selection → sidebar with input focused.
 function M.send_selection()
@@ -254,7 +258,8 @@ function M.setup(opts)
 
   if cfg.keymaps then
     local map = vim.keymap.set
-    map("n", "<leader>a", M.toggle, { desc = "Toggle pi sidebar" })
+    map("n", "<leader>a", M.toggle, { desc = "Pi panel: open / switch focus" })
+    map("n", "<leader>aq", M.close_panel, { desc = "Close pi panel" })
     map("v", "<leader>as", M.send_selection, { desc = "Send selection to pi" })
     map("n", "<leader>af", M.send_file, { desc = "Send current file to pi" })
     map("v", "<leader>ak", M.inline_edit, { desc = "Inline edit with pi" })

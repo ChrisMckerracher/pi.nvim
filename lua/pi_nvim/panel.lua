@@ -17,6 +17,14 @@ local M = {
   ---@type integer|nil
   _resize_group = nil,
   _last_state = { model = nil, thinkingLevel = "?", isStreaming = false },
+  ---@type integer|nil runtime width override from resize gestures
+  _width_override = nil,
+  ---@type { win: integer, delta: integer }|nil editor sibling shift state
+  _editor_shift = nil,
+  ---@type integer|nil editor window the panel was opened from
+  _last_editor_win = nil,
+  ---@type integer|nil runtime input-height override from resize gestures
+  _input_height_override = nil,
 }
 
 ---@param cfg PiNvimConfig
@@ -35,17 +43,79 @@ function M.is_open()
     or (M.input_win ~= nil and vim.api.nvim_win_is_valid(M.input_win))
 end
 
---- Panel width capped so the editor always keeps at least half the screen.
----@return integer
 --- Panel width in columns (fraction or absolute, clamped — config.lua).
 ---@return integer
 local function panel_width() return require("pi_nvim.config").resolve_width(M._cfg) end
+
+--- Effective panel width in columns: runtime override wins, else config.
+---@return integer
+local function current_width() return M._width_override or panel_width() end
+
+--- Shift the rightmost normal (non-float) window left by the panel width, so
+--- editor and panel behave as siblings sharing one root (no occlusion).
+--- The shift is restored on close; resize gestures adjust the same delta.
+local function shift_editor()
+  local target
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_config(win).relative == "" then
+      if not target or vim.api.nvim_win_get_position(win)[2] > vim.api.nvim_win_get_position(target)[2] then
+        target = win
+      end
+    end
+  end
+  if not target then return end
+  local shift = current_width() + 2 -- panel text width + border
+  local w = vim.api.nvim_win_get_width(target)
+  if w - shift < 20 then return end -- never crush the editor window
+  vim.api.nvim_win_set_width(target, w - shift)
+  M._editor_shift = { win = target, delta = shift }
+end
+
+--- Undo the sibling shift from shift_editor().
+local function unshift_editor()
+  local shift = M._editor_shift
+  M._editor_shift = nil
+  if shift and vim.api.nvim_win_is_valid(shift.win) then
+    vim.api.nvim_win_set_width(shift.win, vim.api.nvim_win_get_width(shift.win) + shift.delta)
+  end
+end
+
+--- Move the chat↔input divider by delta lines. The input box can GROW from
+--- its configured height but never shrink below it (the starting point).
+---@param delta integer
+function M.resize_height(delta)
+  if not M.is_open() then return end
+  local cur = M._input_height_override or M._cfg.input_height
+  local max_h = math.max(M._cfg.input_height, vim.o.lines - 10)
+  local new = math.max(M._cfg.input_height, math.min(max_h, cur + delta))
+  if new == cur then return end
+  M._input_height_override = new
+  M._relayout()
+end
+
+--- Move the editor↔panel divider by delta columns (positive = wider panel).
+--- The sibling editor window gives/takes the same columns.
+---@param delta integer
+function M.resize(delta)
+  if not M.is_open() then return end
+  local cur = vim.api.nvim_win_get_width(M.chat_win)
+  local new = math.max(24, math.min(54, cur + delta))
+  local applied = new - cur
+  if applied == 0 then return end
+  M._width_override = new
+  if M._editor_shift and vim.api.nvim_win_is_valid(M._editor_shift.win) then
+    local w = vim.api.nvim_win_get_width(M._editor_shift.win)
+    vim.api.nvim_win_set_width(M._editor_shift.win, math.max(20, w - applied))
+    M._editor_shift.delta = M._editor_shift.delta + applied
+  end
+  M._relayout()
+end
 
 ---@return integer chat_text_height, integer chat_row, integer input_row
 local function layout_rows()
   local cfg = M._cfg
   -- Full editor height: chat outer + input outer == vim.o.lines exactly.
-  local input_outer = cfg.input_height + 2
+  local input_outer = (M._input_height_override or cfg.input_height) + 2
   local chat_outer = math.max(4, vim.o.lines - input_outer)
   return chat_outer - 2, 0, chat_outer
 end
@@ -65,7 +135,7 @@ local function float_config(width, height, row, focusable, title)
     width = width,
     height = height,
     style = "minimal",
-    border = "rounded",
+    border = "single", -- sharp, consistent — rounded looks wrong unless the whole app is enclosed
     focusable = focusable,
     noautocmd = true,
     title = title,
@@ -100,7 +170,9 @@ function M.open()
     return
   end
   local cfg = M._cfg
-  local width = panel_width()
+  local cur = vim.api.nvim_get_current_win()
+  if vim.api.nvim_win_get_config(cur).relative == "" then M._last_editor_win = cur end
+  local width = current_width()
   local chat_height, chat_row, input_row = layout_rows()
 
   M.chat_win =
@@ -119,6 +191,7 @@ function M.open()
   vim.wo[M.input_win].wrap = true
   vim.wo[M.input_win].linebreak = true
 
+  shift_editor()
   vim.cmd "startinsert"
 end
 
@@ -127,6 +200,7 @@ function M.close()
   if M.chat_win and vim.api.nvim_win_is_valid(M.chat_win) then vim.api.nvim_win_close(M.chat_win, true) end
   if M.input_win and vim.api.nvim_win_is_valid(M.input_win) then vim.api.nvim_win_close(M.input_win, true) end
   M.chat_win, M.input_win = nil, nil
+  unshift_editor()
 end
 
 function M.toggle()
@@ -144,10 +218,38 @@ function M.focus_input()
   end
 end
 
+--- Focus the editor window the panel was opened from (or any normal window).
+function M.focus_editor()
+  if M._last_editor_win and vim.api.nvim_win_is_valid(M._last_editor_win) then
+    vim.api.nvim_set_current_win(M._last_editor_win)
+    return
+  end
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_config(win).relative == "" then
+      vim.api.nvim_set_current_win(win)
+      return
+    end
+  end
+end
+
+--- The <leader>a semantics: open when closed, otherwise switch focus
+--- between the editor ("text") and the chat input.
+function M.focus_switch()
+  if not M.is_open() then
+    M.open()
+    return
+  end
+  if vim.api.nvim_get_current_win() == M.input_win then
+    M.focus_editor()
+  else
+    M.focus_input()
+  end
+end
+
 --- Recompute geometry (editor resized, title state changed).
 function M._relayout()
   if not M.is_open() then return end
-  local width = panel_width()
+  local width = current_width()
   local chat_height, chat_row, input_row = layout_rows()
   -- noautocmd is an open-time-only option; set_config rejects it.
   local chat_cfg = float_config(width, chat_height, chat_row, false, chat_title())

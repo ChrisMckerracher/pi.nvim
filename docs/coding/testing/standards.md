@@ -23,3 +23,11 @@
 - Host tests live in `host/test/`, named `*.test.ts`.
 - Lua tests live in `tests/`, named `*_spec.lua`.
 - Keep test artifacts (fixtures, data) separate from test logic.
+
+## Known Issues
+
+- **Plenary directory runs are polluted by cross-file window/buffer leaks**
+  (one spec's scratch windows change another's geometry). `make test` runs
+  each spec FILE in a fresh nvim (`PlenaryBustedFile`) — that is the gate.
+  `PlenaryBustedDirectory` exits 1 despite all suites green; specs that touch
+  window layout must isolate themselves (`vim.cmd("only")`) regardless.

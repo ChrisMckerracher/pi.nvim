@@ -25,6 +25,7 @@ end
 function M.ensure_buf()
   if M.buf and vim.api.nvim_buf_is_valid(M.buf) then return M.buf end
   M.buf = vim.api.nvim_create_buf(false, true)
+  pcall(vim.api.nvim_buf_set_name, M.buf, "pi://prompt")
   vim.bo[M.buf].buftype = "nofile"
   vim.bo[M.buf].bufhidden = "hide"
   vim.bo[M.buf].swapfile = false
