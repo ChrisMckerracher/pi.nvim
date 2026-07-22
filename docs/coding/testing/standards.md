@@ -2,6 +2,7 @@
 - 2026-06-19 23:53 — agent: GLM-5.2 (added provenance header; document content predates this standard)
 - 2026-07-18 00:45 — agent: pi (k3) (copied from the pocket doc set; adapted from pytest/pytest-cov to vitest + plenary)
 - 2026-07-18 01:40 — agent: pi (k3) (rule 4 added: e2e runs share real config state — pi persists thinking level per cwd; reset what you change)
+- 2026-07-18 04:30 — agent: pi (k3) (Known Issues section added: plenary directory runs polluted by cross-file leaks; per-file runs are the gate)
 
 # Testing Standards
 

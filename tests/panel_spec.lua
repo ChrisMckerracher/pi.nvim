@@ -55,26 +55,47 @@ describe("panel", function()
     end)
   end)
 
-  it("shifts the editor on open, moves the divider on resize, restores on close", function()
+  it("docks as real splits and resizes like a native sibling", function()
     panel.close()
-    vim.cmd "only" -- isolate from windows leaked by other spec files
-    -- Sibling shift requires 2+ normal windows (a lone window fills the grid).
-    vim.cmd "vsplit"
-    local editor_win = vim.api.nvim_get_current_win() -- rightmost split
-    vim.api.nvim_win_set_width(editor_win, 60)
-    local editor_w0 = vim.api.nvim_win_get_width(editor_win)
+    vim.cmd "only"
+    local editor = vim.api.nvim_get_current_win()
+    local w0 = vim.api.nvim_win_get_width(editor)
 
     panel.open()
-    local chat_w = vim.api.nvim_win_get_width(panel.chat_win)
-    local editor_w1 = vim.api.nvim_win_get_width(editor_win)
-    assert.equals(editor_w0 - (chat_w + 2), editor_w1)
+    assert.is_true(panel.is_open())
+    assert.equals("", vim.api.nvim_win_get_config(panel.chat_win).relative) -- split, not float
+    assert.equals("", vim.api.nvim_win_get_config(panel.input_win).relative)
+    assert.equals(30, vim.api.nvim_win_get_width(panel.chat_win))
+    assert.is_true(vim.api.nvim_win_get_width(editor) < w0) -- editor gives space automatically
 
-    panel.resize(-4) -- shrink panel → editor grows by the same columns
-    assert.equals(chat_w - 4, vim.api.nvim_win_get_width(panel.chat_win))
-    assert.equals(editor_w1 + 4, vim.api.nvim_win_get_width(editor_win))
-
+    panel.resize(-4)
+    assert.equals(26, vim.api.nvim_win_get_width(panel.chat_win))
+    assert.equals(26, vim.api.nvim_win_get_width(panel.input_win))
     panel.close()
-    assert.equals(editor_w0, vim.api.nvim_win_get_width(editor_win))
-    vim.api.nvim_win_close(editor_win, true)
+    assert.is_false(panel.is_open())
+  end)
+
+  it("prompt height grows from but never below its starting point", function()
+    panel.close()
+    panel.open()
+    local h0 = cfg.input_height
+    assert.equals(h0, vim.api.nvim_win_get_height(panel.input_win))
+    panel.resize_height(-2)
+    assert.equals(h0, vim.api.nvim_win_get_height(panel.input_win)) -- floor
+    panel.resize_height(3)
+    assert.equals(h0 + 3, vim.api.nvim_win_get_height(panel.input_win))
+    panel.close()
+  end)
+
+  it("switches focus between editor and prompt", function()
+    panel.close()
+    vim.cmd "only"
+    panel.open()
+    assert.equals(panel.input_win, vim.api.nvim_get_current_win())
+    panel.focus_switch()
+    assert.is_not.equals(panel.input_win, vim.api.nvim_get_current_win())
+    panel.focus_switch()
+    assert.equals(panel.input_win, vim.api.nvim_get_current_win())
+    panel.close()
   end)
 end)
