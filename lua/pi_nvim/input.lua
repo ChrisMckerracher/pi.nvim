@@ -8,13 +8,13 @@ local M = {
   _cfg = nil,
   ---@type fun(text:string)|nil
   _send = nil,
-  ---@type { on_close: fun(), scroll: fun(direction:integer) }|nil
+  ---@type { on_escape: fun(), on_close: fun(), scroll: fun(direction:integer) }|nil
   _deps = nil,
 }
 
 ---@param cfg PiNvimConfig
 ---@param send_fn fun(text:string)
----@param deps { on_close: fun(), scroll: fun(direction:integer) }
+---@param deps { on_escape: fun(), on_close: fun(), scroll: fun(direction:integer) }
 function M.setup(cfg, send_fn, deps)
   M._cfg = cfg
   M._send = send_fn
@@ -33,8 +33,13 @@ function M.ensure_buf()
   local send = function() M.send() end
   vim.keymap.set("i", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })
   vim.keymap.set("n", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })
+  -- Unified sidebar contract: Esc returns to the editor (panel stays open),
+  -- q closes the panel.
   vim.keymap.set("n", "<Esc>", function()
-    if M._deps then M._deps.on_close() end
+    if M._deps and M._deps.on_escape then M._deps.on_escape() end
+  end, { buffer = M.buf, desc = "Back to editor" })
+  vim.keymap.set("n", "q", function()
+    if M._deps and M._deps.on_close then M._deps.on_close() end
   end, { buffer = M.buf, desc = "Close pi panel" })
   for _, mode in ipairs { "i", "n" } do
     vim.keymap.set(mode, "<C-d>", function()

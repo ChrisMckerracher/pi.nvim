@@ -69,10 +69,11 @@ function M._send(text)
   end)
 end
 
---- Toggle the panel's presence vs focus: opens when closed, otherwise
---- switches focus between editor and chat input (spawns host on first open).
+--- <leader>a: uniform sidebar contract (see KEYBINDINGS.md) —
+--- closed → open + focus prompt · open and outside → focus prompt ·
+--- inside the panel → close. Focus switching is C-h/l like everywhere.
 function M.toggle()
-  panel.focus_switch()
+  panel.toggle()
   M._ensure_host(function() end)
 end
 
@@ -214,6 +215,7 @@ function M.setup(opts)
   chat.setup(cfg)
   context.setup()
   input.setup(cfg, M._send, {
+    on_escape = function() panel.focus_editor() end,
     on_close = function() panel.close() end,
     scroll = function(direction) panel.scroll_chat(direction) end,
   })
@@ -262,8 +264,7 @@ function M.setup(opts)
 
   if cfg.keymaps then
     local map = vim.keymap.set
-    map("n", "<leader>a", M.toggle, { desc = "Pi panel: open / switch focus" })
-    map("n", "<leader>aq", M.close_panel, { desc = "Close pi panel" })
+    map("n", "<leader>a", M.toggle, { desc = "Pi panel (open/focus/close)" })
     map("v", "<leader>as", M.send_selection, { desc = "Send selection to pi" })
     map("n", "<leader>af", M.send_file, { desc = "Send current file to pi" })
     map("v", "<leader>ak", M.inline_edit, { desc = "Inline edit with pi" })
@@ -274,28 +275,6 @@ function M.setup(opts)
     map("n", "<leader>am", M.pick_model, { desc = "Pick pi model" })
     map("n", "<leader>at", M.cycle_thinking, { desc = "Cycle pi thinking level" })
     map("n", "<leader>ax", M.abort, { desc = "Abort pi agent run" })
-    -- Chat scroll works from anywhere — the panel is non-focusable, so
-    -- keyboard nav can't rely on entering it (mouse wheel also works).
-    map("n", "<leader>aj", function() panel.scroll_chat(1) end, { desc = "Scroll pi chat down" })
-    map("n", "<leader>ak", function() panel.scroll_chat(-1) end, { desc = "Scroll pi chat up" })
-    map("n", "<leader>ag", function() panel.scroll_chat_edge "top" end, { desc = "Pi chat to top" })
-    map("n", "<leader>aG", function() panel.scroll_chat_edge "bottom" end, { desc = "Pi chat to bottom" })
-
-    -- Mouse wheel over the chat panel scrolls it (the float is
-    -- non-focusable, so route wheel events by mouse position). Expr +
-    -- noremap: returning the key itself performs the default action.
-    local wheel = function(lhs, delta)
-      vim.keymap.set({ "n", "i" }, lhs, function()
-        local pos = vim.fn.getmousepos()
-        if panel.chat_win and pos.winid == panel.chat_win then
-          panel.scroll_chat_lines(delta)
-          return ""
-        end
-        return lhs
-      end, { expr = true, desc = "Scroll pi chat" })
-    end
-    wheel("<ScrollWheelUp>", -3)
-    wheel("<ScrollWheelDown>", 3)
   end
 end
 

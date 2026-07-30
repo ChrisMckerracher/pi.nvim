@@ -106,8 +106,10 @@ function M.open()
   vim.wo[M.input_win].winfixheight = true
   vim.wo[M.input_win].winbar = input_title()
 
-  -- The chat is a viewer: q dismisses the panel, typing bounces to the prompt.
+  -- The chat is a viewer: Esc returns to the editor, q closes the panel,
+  -- typing bounces to the prompt.
   local chat_buf = vim.api.nvim_win_get_buf(M.chat_win)
+  vim.keymap.set("n", "<Esc>", M.focus_editor, { buffer = chat_buf, desc = "Back to editor" })
   vim.keymap.set("n", "q", M.close, { buffer = chat_buf, desc = "Close pi panel" })
   for _, key in ipairs { "i", "a", "o", "O", "<CR>" } do
     vim.keymap.set("n", key, M.focus_input, { buffer = chat_buf, desc = "Go to pi prompt" })
@@ -125,10 +127,15 @@ function M.close()
 end
 
 function M.toggle()
-  if M.is_open() then
+  if not M.is_open() then
+    M.open()
+    return
+  end
+  local cur = vim.api.nvim_get_current_win()
+  if cur == M.chat_win or cur == M.input_win then
     M.close()
   else
-    M.open()
+    M.focus_input()
   end
 end
 
@@ -150,20 +157,6 @@ function M.focus_editor()
       vim.api.nvim_set_current_win(win)
       return
     end
-  end
-end
-
---- The <leader>a semantics: open when closed, otherwise switch focus
---- between the editor ("text") and the chat prompt.
-function M.focus_switch()
-  if not M.is_open() then
-    M.open()
-    return
-  end
-  if vim.api.nvim_get_current_win() == M.input_win then
-    M.focus_editor()
-  else
-    M.focus_input()
   end
 end
 
@@ -241,21 +234,6 @@ function M.scroll_chat(direction)
   if not (M.chat_win and vim.api.nvim_win_is_valid(M.chat_win)) then return end
   local keys = direction > 0 and "\x04" or "\x15" -- <C-d> / <C-u>
   vim.api.nvim_win_call(M.chat_win, function() vim.cmd("normal! " .. keys) end)
-end
-
---- Scroll the chat panel by N lines (mouse wheel path).
----@param lines integer positive = down, negative = up
-function M.scroll_chat_lines(lines)
-  if not (M.chat_win and vim.api.nvim_win_is_valid(M.chat_win)) then return end
-  local key = lines > 0 and "\x05" or "\x19" -- <C-e> / <C-y>
-  vim.api.nvim_win_call(M.chat_win, function() vim.cmd(("normal! %d%s"):format(math.abs(lines), key)) end)
-end
-
---- Jump the chat panel to an edge (gg / G semantics, without focus).
----@param edge "top"|"bottom"
-function M.scroll_chat_edge(edge)
-  if not (M.chat_win and vim.api.nvim_win_is_valid(M.chat_win)) then return end
-  vim.api.nvim_win_call(M.chat_win, function() vim.cmd("normal! " .. (edge == "top" and "gg" or "G")) end)
 end
 
 return M

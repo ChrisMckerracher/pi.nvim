@@ -29,30 +29,16 @@ describe("panel", function()
   after_each(function() panel.close() end)
 
   it("scrolls by half pages without focus", function()
-    panel.scroll_chat_edge "top"
-    assert.equals(1, top_line())
+    vim.api.nvim_win_set_cursor(panel.chat_win, { 1, 0 })
     panel.scroll_chat(1)
     assert.is_true(top_line() > 1)
     panel.scroll_chat(-1)
     assert.equals(1, top_line())
   end)
 
-  it("jumps to edges (gg / G semantics)", function()
-    panel.scroll_chat_edge "top"
-    assert.equals(1, top_line())
-    panel.scroll_chat_edge "bottom"
-    assert.is_true(top_line() > 1)
-    panel.scroll_chat_edge "top"
-    assert.equals(1, top_line())
-  end)
-
   it("ignores scroll calls when the panel is closed", function()
     panel.close()
-    assert.has_no_errors(function()
-      panel.scroll_chat(1)
-      panel.scroll_chat_lines(3)
-      panel.scroll_chat_edge "bottom"
-    end)
+    assert.has_no_errors(function() panel.scroll_chat(1) end)
   end)
 
   it("docks as real splits and resizes like a native sibling", function()
@@ -87,16 +73,17 @@ describe("panel", function()
     panel.close()
   end)
 
-  it("switches focus between editor and prompt", function()
+  it("toggle: open+focus, focus from outside, close from inside (3-state)", function()
     panel.close()
     vim.cmd "only"
-    panel.open()
+    panel.toggle() -- closed → open + focus prompt
+    assert.is_true(panel.is_open())
     assert.equals(panel.input_win, vim.api.nvim_get_current_win())
-    panel.focus_switch()
-    assert.is_not.equals(panel.input_win, vim.api.nvim_get_current_win())
-    panel.focus_switch()
+    vim.cmd "wincmd h" -- step out to the editor
+    panel.toggle() -- open + outside → focus prompt
     assert.equals(panel.input_win, vim.api.nvim_get_current_win())
-    panel.close()
+    panel.toggle() -- inside → close
+    assert.is_false(panel.is_open())
   end)
 
   it("shows a spinner in the prompt winbar while working, hints after", function()
