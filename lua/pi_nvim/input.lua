@@ -33,8 +33,13 @@ function M.ensure_buf()
   local send = function() M.send() end
   vim.keymap.set("i", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })
   vim.keymap.set("n", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })
-  -- Unified sidebar contract: Esc returns to the editor (panel stays open),
-  -- q closes the panel.
+  -- The prompt is a text field, not a vim buffer: Esc never drops to normal
+  -- mode in place — it returns you to the editor (and re-entering the
+  -- prompt puts you back in insert via the autocmd below).
+  vim.keymap.set("i", "<Esc>", function()
+    vim.cmd "stopinsert"
+    if M._deps and M._deps.on_escape then M._deps.on_escape() end
+  end, { buffer = M.buf, desc = "Back to editor" })
   vim.keymap.set("n", "<Esc>", function()
     if M._deps and M._deps.on_escape then M._deps.on_escape() end
   end, { buffer = M.buf, desc = "Back to editor" })
@@ -51,6 +56,15 @@ function M.ensure_buf()
       if M._deps then M._deps.scroll(-1) end
     end, { buffer = M.buf, desc = "Scroll pi chat up" })
   end
+
+  -- Default to insert, always: entering the prompt window means typing.
+  local group = vim.api.nvim_create_augroup("PiNvimPromptInsert", { clear = true })
+  vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter" }, {
+    group = group,
+    callback = function()
+      if vim.api.nvim_get_current_buf() == M.buf then vim.cmd "startinsert" end
+    end,
+  })
   return M.buf
 end
 
