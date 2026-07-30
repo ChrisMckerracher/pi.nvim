@@ -86,6 +86,7 @@ end
 ---@param hl string|nil
 ---@return integer start_lnum 0-indexed line where the first line landed
 function M.append_lines(lines, hl)
+  M.ensure_buf()
   if #lines == 0 then return vim.api.nvim_buf_line_count(M.buf) end
   local count = vim.api.nvim_buf_line_count(M.buf)
   if count == 1 and vim.api.nvim_buf_get_lines(M.buf, 0, 1, false)[1] == "" and lines[1] == "" then
@@ -100,6 +101,7 @@ end
 ---@param text string
 ---@param hl string|nil
 function M.append_text(text, hl)
+  M.ensure_buf()
   local segments = vim.split(text, "\n", { plain = true })
   local count = vim.api.nvim_buf_line_count(M.buf)
   local last = vim.api.nvim_buf_get_lines(M.buf, count - 1, count, false)[1] or ""

@@ -93,4 +93,12 @@ describe("chat buffer", function()
     chat.event { type = "message_update", assistantMessageEvent = { type = "text_delta", delta = "more\n" } }
     assert.equals(1, vim.api.nvim_win_get_cursor(chat_win)[1])
   end)
+
+  it("echoes the user even before the panel ever opened (buffer auto-created)", function()
+    chat.buf = nil -- simulate: inline edit fired before any panel open
+    assert.has_no_errors(function() chat.echo_user("hello", "+ selection") end)
+    assert.is_not_nil(chat.buf)
+    local text = table.concat(vim.api.nvim_buf_get_lines(chat.buf, 0, -1, false), "\n")
+    assert.truthy(text:find("hello", 1, true))
+  end)
 end)
