@@ -229,8 +229,10 @@ function M.setup(opts)
       M._answer_editor_context(evt.requestId)
     elseif evt.type == "agent_start" then
       diff.reset()
+      panel.start_spinner()
       panel.update_winbar(host.state)
     elseif evt.type == "agent_settled" then
+      panel.stop_spinner()
       -- Refresh stats (tokens/cost/context) once per settled run.
       host:request("get_state", {}, function(resp)
         if resp.success then
@@ -240,6 +242,8 @@ function M.setup(opts)
       end)
     elseif evt.type == "thinking_level_changed" then
       panel.update_winbar(host.state)
+    elseif evt.type == "host_error" then
+      panel.stop_spinner()
     end
   end)
 

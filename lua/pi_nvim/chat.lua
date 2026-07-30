@@ -8,11 +8,9 @@ local M = {
   ---@type integer|nil
   buf = nil,
   ns = vim.api.nvim_create_namespace "pi_nvim_chat",
-  spinner_ns = vim.api.nvim_create_namespace "pi_nvim_spinner",
   style_ns = vim.api.nvim_create_namespace "pi_nvim_style",
   ---@type PiNvimConfig|nil
   _cfg = nil,
-  _spinner = { timer = nil, frame = 1, mark = nil, message = nil },
   ---@type { lnum: integer, lines: integer }|nil
   _thinking = nil,
 }
@@ -20,7 +18,6 @@ local M = {
 ---@param cfg PiNvimConfig
 function M.setup(cfg)
   M._cfg = cfg
-  math.randomseed(os.time())
   vim.api.nvim_set_hl(0, "PiNvimUserHeader", { link = "Title", default = true })
   vim.api.nvim_set_hl(0, "PiNvimPiHeader", { link = "Special", default = true })
   vim.api.nvim_set_hl(0, "PiNvimTool", { link = "Statement", default = true })
@@ -202,62 +199,6 @@ function M._restyle()
 end
 
 -- ---------------------------------------------------------------------------
--- Spinner: animated working indicator (agent_start → agent_settled).
--- A virtual line below the content — never interferes with the stream.
--- ---------------------------------------------------------------------------
-
-local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
-
-function M.start_spinner()
-  if M._spinner.timer then return end
-  M.ensure_buf()
-  local messages = M._cfg.working_messages
-  M._spinner.message = messages[math.random(#messages)]
-  local timer = vim.uv.new_timer()
-  M._spinner.timer = timer
-  timer:start(0, 90, vim.schedule_wrap(function() M._render_spinner() end))
-end
-
-function M._render_spinner()
-  local s = M._spinner
-  if not (M.buf and vim.api.nvim_buf_is_valid(M.buf)) then
-    M.stop_spinner()
-    return
-  end
-  if s.mark then pcall(vim.api.nvim_buf_del_extmark, M.buf, M.spinner_ns, s.mark) end
-  local count = vim.api.nvim_buf_line_count(M.buf)
-  local text = fit_width(" " .. SPINNER_FRAMES[s.frame] .. " " .. (s.message or "Loading") .. "…")
-  -- Pin to the bottom of the window: pad with empty virtual lines so the
-  -- spinner sits at the window's lower edge instead of right after content.
-  local virt = {}
-  local win = vim.fn.win_findbuf(M.buf)[1]
-  if win then
-    local padding = math.max(0, vim.api.nvim_win_get_height(win) - count - 2)
-    for _ = 1, padding do
-      virt[#virt + 1] = { { " ", "Normal" } }
-    end
-  end
-  virt[#virt + 1] = { { text, "PiNvimSpinner" } }
-  s.mark = vim.api.nvim_buf_set_extmark(M.buf, M.spinner_ns, count - 1, 0, { virt_lines = virt })
-  s.frame = (s.frame % #SPINNER_FRAMES) + 1
-end
-
-function M.stop_spinner()
-  local s = M._spinner
-  if s.timer then
-    s.timer:stop()
-    s.timer:close()
-    s.timer = nil
-  end
-  if s.mark and M.buf and vim.api.nvim_buf_is_valid(M.buf) then
-    pcall(vim.api.nvim_buf_del_extmark, M.buf, M.spinner_ns, s.mark)
-  end
-  s.mark = nil
-  s.frame = 1
-  s.message = nil
-end
-
--- ---------------------------------------------------------------------------
 -- Tool call rendering
 -- ---------------------------------------------------------------------------
 
@@ -312,11 +253,7 @@ function M.event(evt)
   M.ensure_buf()
   local t = evt.type
 
-  if t == "agent_start" then
-    M.start_spinner()
-  elseif t == "agent_settled" then
-    M.stop_spinner()
-  elseif t == "message_start" then
+  if t == "message_start" then
     local msg = evt.message
     if type(msg) == "table" and msg.role == "assistant" then separator "Pi" end
   elseif t == "message_update" then
@@ -357,7 +294,6 @@ function M.event(evt)
   elseif t == "auto_retry_start" then
     M.note(("retrying (attempt %s)…"):format(tostring(evt.attempt)))
   elseif t == "host_error" then
-    M.stop_spinner()
     M.show_error(tostring(evt.message))
   end
 
@@ -367,12 +303,16 @@ end
 
 --- Keep the panel pinned to the bottom while streaming, unless the user has
 --- scrolled up to read (cursor above the last 10 lines).
+--- Pin visible chat windows to the bottom while streaming. The only time we
+--- DON'T scroll is when the chat window itself is focused and the user has
+--- scrolled up to read history — anything else (cursor in prompt or editor)
+--- means "keep it at the bottom".
 function M.scroll_to_bottom()
   if not M._cfg.auto_scroll then return end
   local count = vim.api.nvim_buf_line_count(M.buf)
   for _, win in ipairs(vim.fn.win_findbuf(M.buf)) do
-    local cursor = vim.api.nvim_win_get_cursor(win)
-    if cursor[1] >= count - 10 then pcall(vim.api.nvim_win_set_cursor, win, { count, 0 }) end
+    local reading_history = win == vim.api.nvim_get_current_win() and vim.api.nvim_win_get_cursor(win)[1] < count - 10
+    if not reading_history then pcall(vim.api.nvim_win_set_cursor, win, { count, 0 }) end
   end
 end
 

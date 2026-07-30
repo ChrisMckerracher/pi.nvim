@@ -21,10 +21,15 @@ local M = {
   _input_height_override = nil,
   ---@type integer|nil editor window the panel was opened from
   _last_editor_win = nil,
+  ---@type integer|nil spinner animation timer
+  _spinner_timer = nil,
 }
 
 ---@param cfg PiNvimConfig
-function M.setup(cfg) M._cfg = cfg end
+function M.setup(cfg)
+  M._cfg = cfg
+  math.randomseed(os.time())
+end
 
 ---@return boolean
 function M.is_open()
@@ -44,6 +49,9 @@ local function format_count(n)
   if n >= 1000 then return ("%.1fk"):format(n / 1000) end
   return tostring(n)
 end
+
+---@return string
+local function input_title() return " send <CR> · newline <C-j> · scroll <C-d/u> " end
 
 ---@return string
 local function chat_title()
@@ -96,7 +104,7 @@ function M.open()
   vim.api.nvim_win_set_buf(M.input_win, input.ensure_buf())
   dress_window(M.input_win)
   vim.wo[M.input_win].winfixheight = true
-  vim.wo[M.input_win].winbar = " send <CR> · newline <C-j> · scroll <C-d/u> "
+  vim.wo[M.input_win].winbar = input_title()
 
   -- The chat is a viewer: q dismisses the panel, typing bounces to the prompt.
   local chat_buf = vim.api.nvim_win_get_buf(M.chat_win)
@@ -110,6 +118,7 @@ end
 
 --- Close both windows; buffers persist for the next open.
 function M.close()
+  M.stop_spinner()
   if M.chat_win and vim.api.nvim_win_is_valid(M.chat_win) then vim.api.nvim_win_close(M.chat_win, true) end
   if M.input_win and vim.api.nvim_win_is_valid(M.input_win) then vim.api.nvim_win_close(M.input_win, true) end
   M.chat_win, M.input_win = nil, nil
@@ -156,6 +165,41 @@ function M.focus_switch()
   else
     M.focus_input()
   end
+end
+
+-- ---------------------------------------------------------------------------
+-- Spinner: animated working indicator while the agent runs (agent_start →
+-- agent_settled), rendered in the PROMPT winbar — always visible at the
+-- bottom of the panel, unaffected by chat scrolling.
+-- ---------------------------------------------------------------------------
+
+local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
+
+function M.start_spinner()
+  if M._spinner_timer then return end
+  local messages = M._cfg.working_messages
+  local message = messages[math.random(#messages)]
+  local frame = 1
+  M._spinner_timer = vim.uv.new_timer()
+  M._spinner_timer:start(
+    0,
+    90,
+    vim.schedule_wrap(function()
+      if M.input_win and vim.api.nvim_win_is_valid(M.input_win) then
+        vim.wo[M.input_win].winbar = (" %s %s… "):format(SPINNER_FRAMES[frame], message)
+        frame = (frame % #SPINNER_FRAMES) + 1
+      end
+    end)
+  )
+end
+
+function M.stop_spinner()
+  if M._spinner_timer then
+    M._spinner_timer:stop()
+    M._spinner_timer:close()
+    M._spinner_timer = nil
+  end
+  if M.input_win and vim.api.nvim_win_is_valid(M.input_win) then vim.wo[M.input_win].winbar = input_title() end
 end
 
 --- Reflect host state in the chat winbar (model · thinking · streaming · tokens).

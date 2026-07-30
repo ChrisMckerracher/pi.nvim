@@ -30,24 +30,6 @@ describe("chat buffer", function()
     assert.is_false(vim.bo[chat.buf].modifiable)
   end)
 
-  it("shows and hides the spinner on agent_start/agent_settled", function()
-    chat.event { type = "agent_start" }
-    local started = vim.wait(
-      2000,
-      function() return #vim.api.nvim_buf_get_extmarks(chat.buf, chat.spinner_ns, 0, -1, {}) > 0 end,
-      50
-    )
-    assert.is_true(started)
-    chat.event { type = "agent_settled" }
-    assert.same({}, vim.api.nvim_buf_get_extmarks(chat.buf, chat.spinner_ns, 0, -1, {}))
-  end)
-
-  it("stops the spinner on host_error", function()
-    chat.start_spinner()
-    chat.event { type = "host_error", message = "boom" }
-    assert.is_nil(chat._spinner.timer)
-  end)
-
   it("collapses thinking into a single dim summary line", function()
     chat._cfg.render_thinking = false -- collapsed mode (the default)
     chat.event { type = "message_start", message = { role = "assistant" } }
@@ -93,28 +75,22 @@ describe("chat buffer", function()
     assert.equals(thought_lnum + 1, answer_lnum)
   end)
 
-  it("picks a short working message per run", function()
-    chat.event { type = "agent_start" }
-    assert.equals("Testing", chat._spinner.message)
-    chat.stop_spinner()
-    assert.is_nil(chat._spinner.message)
-  end)
+  it("pins to bottom while streaming unless the focused chat is scrolled up", function()
+    chat._cfg.auto_scroll = true
+    chat.replay {}
+    vim.api.nvim_win_set_buf(0, chat.buf)
+    local chat_win = vim.api.nvim_get_current_win()
+    vim.cmd "vsplit | enew" -- focus moves to a new, unrelated window
+    vim.api.nvim_win_set_cursor(chat_win, { 1, 0 })
+    for _ = 1, 20 do
+      chat.event { type = "message_update", assistantMessageEvent = { type = "text_delta", delta = "line\n" } }
+    end
+    assert.equals(vim.api.nvim_buf_line_count(chat.buf), vim.api.nvim_win_get_cursor(chat_win)[1])
 
-  it("pins the spinner to the window bottom with padding", function()
-    chat.replay {} -- known short content
-    local win = vim.api.nvim_get_current_win()
-    vim.api.nvim_win_set_buf(win, chat.buf)
-    vim.api.nvim_win_set_height(win, 20)
-    chat.event { type = "agent_start" }
-    local shown = vim.wait(
-      2000,
-      function() return #vim.api.nvim_buf_get_extmarks(chat.buf, chat.spinner_ns, 0, -1, {}) > 0 end,
-      50
-    )
-    assert.is_true(shown)
-    local marks = vim.api.nvim_buf_get_extmarks(chat.buf, chat.spinner_ns, 0, -1, { details = true })
-    assert.equals(1, #marks)
-    assert.is_true(#marks[1][4].virt_lines > 1) -- padding lines + spinner line
-    chat.stop_spinner()
+    -- focused chat, user scrolled up to read: don't yank
+    vim.api.nvim_set_current_win(chat_win)
+    vim.api.nvim_win_set_cursor(chat_win, { 1, 0 })
+    chat.event { type = "message_update", assistantMessageEvent = { type = "text_delta", delta = "more\n" } }
+    assert.equals(1, vim.api.nvim_win_get_cursor(chat_win)[1])
   end)
 end)

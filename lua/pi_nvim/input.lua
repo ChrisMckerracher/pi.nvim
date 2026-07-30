@@ -31,10 +31,7 @@ function M.ensure_buf()
   vim.bo[M.buf].swapfile = false
 
   local send = function() M.send() end
-  vim.keymap.set("i", "<CR>", function()
-    vim.cmd "stopinsert"
-    send()
-  end, { buffer = M.buf, desc = "Send message to pi" })
+  vim.keymap.set("i", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })
   vim.keymap.set("n", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })
   vim.keymap.set("n", "<Esc>", function()
     if M._deps then M._deps.on_close() end
@@ -51,6 +48,8 @@ function M.ensure_buf()
 end
 
 --- Read, clear, and dispatch the input text via the registered send function.
+--- Read, clear, and dispatch the input text via the registered send function.
+--- Sending is not a mode change: the user stays in insert mode, still typing.
 function M.send()
   if not M.buf or not vim.api.nvim_buf_is_valid(M.buf) then return end
   local text = table.concat(vim.api.nvim_buf_get_lines(M.buf, 0, -1, false), "\n")
@@ -58,6 +57,8 @@ function M.send()
   if text == "" then return end
   vim.api.nvim_buf_set_lines(M.buf, 0, -1, false, { "" })
   if M._send then M._send(text) end
+  local win = vim.fn.win_findbuf(M.buf)[1]
+  if win and vim.api.nvim_get_current_win() == win then vim.cmd "startinsert" end
 end
 
 --- Pre-fill the input (e.g. after capturing a selection).

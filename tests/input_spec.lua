@@ -30,4 +30,24 @@ describe("input", function()
     end
     assert.truthy(vim.tbl_contains(words, tmp))
   end)
+
+  it("sends without error and clears the box (insert persistence is manual-verify)", function()
+    -- NOTE: headless nvim never enters insert mode (probed: startinsert +
+    -- 500ms wait still reports 'n'), so 'send keeps you typing' can't be
+    -- asserted here. The mechanism: the <CR> insert map no longer calls
+    -- stopinsert, and send() ends with startinsert for the normal-mode path.
+    local sent = nil
+    input.setup(
+      { input_height = 6 },
+      function(text) sent = text end,
+      { on_close = function() end, scroll = function() end }
+    )
+    input.ensure_buf()
+    local win = vim.api.nvim_get_current_win()
+    vim.api.nvim_win_set_buf(win, input.buf)
+    vim.api.nvim_buf_set_lines(input.buf, 0, -1, false, { "hello" })
+    assert.has_no_errors(function() input.send() end)
+    assert.equals("hello", sent)
+    assert.same({ "" }, vim.api.nvim_buf_get_lines(input.buf, 0, -1, false))
+  end)
 end)

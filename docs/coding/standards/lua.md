@@ -2,6 +2,7 @@
 - 2026-07-18 00:55 — agent: pi (k3) (initial standard — Lua counterpart to pocket's python.md, mirrored structure and numbering spirit)
 - 2026-07-18 02:40 — agent: pi (k3) (rules 9-10 added after human UX corrections: read-only transcript buffers, visible working affordance)
 - 2026-07-18 03:10 — agent: pi (k3) (rule 11 added: virtual lines never wrap — cut-off lesson; panel float pattern noted in rule 9)
+- 2026-07-18 05:00 — agent: pi (k3) (rule 12 added: statusline-format escaping — the E542 lesson)
 
 # Lua Standards
 
@@ -18,6 +19,7 @@ Applies to `lua/`, `plugin/`, `tests/`.
 9. Display buffers that hold transcripts, logs, or results are read-only: `modifiable = false`, with a `with_modifiable` wrapper for the owning module's own writes. Do not add `readonly` to scratch buffers — it W10-warns on our own writes. Editable buffers exist only where the user is meant to type. For panel surfaces, also make the WINDOW non-focusable (`nvim_open_win` with `focusable = false`) — the cursor cannot enter, which is what makes it feel like a panel rather than an editor.
 10. Every long-running or async operation shows a visible affordance while in flight (spinner, winbar state, or status note) and a clear end state. Silent waiting is a bug.
 11. Virtual lines/text (extmarks) never wrap — anything longer than the window is silently cut off. Keep virtual content within the window width (truncate with an ellipsis); long content must be real buffer lines.
+12. Winbar and statusline strings are statusline-FORMAT strings, not plain text: a literal `%` (e.g. a context-percent `(34%)`) throws E542 "unbalanced groups". Build the display string, then `:gsub("%%", "%%%%")` before assigning.
 
 ## Project Layout
 
