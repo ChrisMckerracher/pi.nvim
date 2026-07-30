@@ -51,7 +51,7 @@ local function format_count(n)
 end
 
 ---@return string
-local function input_title() return " send <CR> · newline <C-j> · scroll <C-d/u> " end
+local function input_title() return " send <CR> · newline <C-j> · scroll <PgUp/Dn> " end
 
 ---@return string
 local function chat_title()

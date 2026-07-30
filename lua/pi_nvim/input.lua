@@ -42,10 +42,12 @@ function M.ensure_buf()
     if M._deps and M._deps.on_close then M._deps.on_close() end
   end, { buffer = M.buf, desc = "Close pi panel" })
   for _, mode in ipairs { "i", "n" } do
-    vim.keymap.set(mode, "<C-d>", function()
+    -- PageUp/PageDown scroll the chat: vim-like, and no conflict with
+    -- insert-mode editing keys (C-u delete-to-start, C-d dedent).
+    vim.keymap.set(mode, "<PageDown>", function()
       if M._deps then M._deps.scroll(1) end
     end, { buffer = M.buf, desc = "Scroll pi chat down" })
-    vim.keymap.set(mode, "<C-u>", function()
+    vim.keymap.set(mode, "<PageUp>", function()
       if M._deps then M._deps.scroll(-1) end
     end, { buffer = M.buf, desc = "Scroll pi chat up" })
   end
