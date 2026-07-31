@@ -29,6 +29,7 @@ function M.ensure_buf()
   vim.bo[M.buf].buftype = "nofile"
   vim.bo[M.buf].bufhidden = "hide"
   vim.bo[M.buf].swapfile = false
+  vim.bo[M.buf].filetype = "pi_prompt" -- lets the host config bind app-level keys here
 
   local send = function() M.send() end
   vim.keymap.set("i", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })

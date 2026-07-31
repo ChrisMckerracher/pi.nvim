@@ -77,8 +77,10 @@ function M.capture_visual()
     lines[1] = string.sub(lines[1], start_col)
   end
 
-  -- Exit visual mode so the editor returns to a sane state.
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "n", false)
+  -- Exit visual mode SYNCHRONOUSLY (the "x" flag processes the Esc now).
+  -- A queued feedkeys Esc would land later — inside whatever dialog we open
+  -- next (it kicked users out of the inline-edit input's insert mode).
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "nx", false)
 
   M.pending = {
     kind = "selection",
