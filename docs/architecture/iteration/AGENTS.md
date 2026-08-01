@@ -13,3 +13,4 @@ These are rough, informal, and disposable. Write freely — questions, half-form
 | Document | Purpose |
 |----------|---------|
 | [001-cursor-like-nvim-with-embedded-pi.md](001-cursor-like-nvim-with-embedded-pi.md) | Interview record: goals, feature priorities, architecture fork (immutable snapshot) |
+| [002-live-ux-hardening.md](002-live-ux-hardening.md) | Session narrative: floats→splits, insert-only paradox, bug chain, tmux verification (immutable) |

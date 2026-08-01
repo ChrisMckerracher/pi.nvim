@@ -3,6 +3,7 @@
 - 2026-07-18 00:45 — agent: pi (k3) (copied from the pocket doc set; adapted from pytest/pytest-cov to vitest + plenary)
 - 2026-07-18 01:40 — agent: pi (k3) (rule 4 added: e2e runs share real config state — pi persists thinking level per cwd; reset what you change)
 - 2026-07-18 04:30 — agent: pi (k3) (Known Issues section added: plenary directory runs polluted by cross-file leaks; per-file runs are the gate)
+- 2026-08-01 05:40 — agent: pi (k3) (headless insert-mode limitation documented; Interactive Verification (tmux) and Environment Facts sections added)
 
 # Testing Standards
 
@@ -32,3 +33,26 @@
   each spec FILE in a fresh nvim (`PlenaryBustedFile`) — that is the gate.
   `PlenaryBustedDirectory` exits 1 despite all suites green; specs that touch
   window layout must isolate themselves (`vim.cmd("only")`) regardless.
+- **Headless nvim never enters insert mode** (probed: `startinsert` + 500ms
+  wait still reports `n`), and floats/pickers render as plain text. Anything
+  modal — insert persistence, float visibility, hit-enter prompts, real
+  keystroke flows — is UNVERIFIABLE headless.
+
+## Interactive Verification (tmux)
+
+For the headless blind spots above, the harness is a real terminal:
+
+```bash
+tmux new-session -d -s verify -x 200 -y 50 -c /path/to/proj "nvim file.py"
+tmux send-keys -t verify 'V' 'j' ' ak'      # drive real keystrokes
+tmux capture-pane -t verify -p | tail -20  # assert on the visible screen
+tmux kill-session -t verify
+```
+
+Every interactive bug in the 2026-08-01 hardening session was reproduced in
+tmux before fixing. Use it for DAP smoke, dialog flows, and layout checks.
+
+## Environment Facts (this machine)
+
+- `python3` exists; **`python` does not** (no alias). DAP `pythonPath`,
+  scripts, and shell-outs must call `python3`.

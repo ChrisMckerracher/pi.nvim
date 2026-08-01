@@ -3,6 +3,7 @@
 - 2026-07-18 02:40 — agent: pi (k3) (rules 9-10 added after human UX corrections: read-only transcript buffers, visible working affordance)
 - 2026-07-18 03:10 — agent: pi (k3) (rule 11 added: virtual lines never wrap — cut-off lesson; panel float pattern noted in rule 9)
 - 2026-07-18 05:00 — agent: pi (k3) (rule 12 added: statusline-format escaping — the E542 lesson)
+- 2026-08-01 05:40 — agent: pi (k3) (rules 13–18 added from the live-UX hardening session; narrative in [iteration/002](../../architecture/iteration/002-live-ux-hardening.md))
 
 # Lua Standards
 
@@ -20,6 +21,12 @@ Applies to `lua/`, `plugin/`, `tests/`.
 10. Every long-running or async operation shows a visible affordance while in flight (spinner, winbar state, or status note) and a clear end state. Silent waiting is a bug.
 11. Virtual lines/text (extmarks) never wrap — anything longer than the window is silently cut off. Keep virtual content within the window width (truncate with an ellipsis); long content must be real buffer lines.
 12. Winbar and statusline strings are statusline-FORMAT strings, not plain text: a literal `%` (e.g. a context-percent `(34%)`) throws E542 "unbalanced groups". Build the display string, then `:gsub("%%", "%%%%")` before assigning.
+13. Declare Lua locals before use — closures capture scope at definition time. A helper defined after its caller is a nil call at runtime (the `format_count` bug).
+14. `feedkeys` is a queue, not a call: mode `"n"` defers to typeahead, so a queued `<Esc>` lands in the NEXT dialog or window that opens (it ejected users from snacks.input's insert mode). To exit visual mode synchronously, use mode `"nx"`.
+15. `cmdheight=0` hides the DEFAULT `vim.ui.input` and `vim.fn.input` dialogs permanently. Any input prompt must use a floating replacement (snacks.input) — verify input flows after changing cmdline settings.
+16. Ensure buffers exist at render funnels. `append_lines`/`append_text` must `ensure_buf()`: features like inline edit fire before the panel has ever opened, and rendering into a nil buffer explodes in a vim.schedule error.
+17. Closing a window ≠ deleting a buffer. Sidebars that should disappear from the tabline need an explicit `nvim_buf_delete` on close (neo-tree's buffer otherwise lingers as a phantom tab).
+18. Insert-only surfaces type your leader chords. A prompt that is always-in-insert turns `Space e` into the text " e". Give mode-safe twins (Alt+key) and a filetype seam (e.g. `pi_prompt`) so the host config can bind app-level keys there without violating the plugin's boundaries.
 
 ## Project Layout
 
