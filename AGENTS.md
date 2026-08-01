@@ -15,6 +15,10 @@ inline edit, and diff review. Two components:
 They communicate over a versioned JSONL stdio protocol
 ([ADR-002](docs/architecture/adr/002-versioned-jsonl-stdio-protocol.md)).
 
+> **New agent? Start at [docs/HANDOFF.md](docs/HANDOFF.md)** — state of the
+> world, deliberately-open work items with next steps, and how to verify
+> anything. The rest of this file is the rulebook for working here.
+
 ## Project Structure
 
 ```
@@ -81,6 +85,7 @@ make check     # lint + test + build — run before committing
 
 | Path | Purpose |
 |------|---------|
+| `docs/HANDOFF.md` | [Start here — state + open work](docs/HANDOFF.md) |
 | `docs/architecture/` | [Architecture decisions, designs, and iteration notes](docs/architecture/AGENTS.md) |
 | `docs/coding/` | [Coding standards and testing conventions](docs/coding/AGENTS.md) |
 | `docs/product/` | [Product research and domain knowledge](docs/product/AGENTS.md) |
