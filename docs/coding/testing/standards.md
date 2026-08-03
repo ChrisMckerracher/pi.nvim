@@ -4,6 +4,7 @@
 - 2026-07-18 01:40 — agent: pi (k3) (rule 4 added: e2e runs share real config state — pi persists thinking level per cwd; reset what you change)
 - 2026-07-18 04:30 — agent: pi (k3) (Known Issues section added: plenary directory runs polluted by cross-file leaks; per-file runs are the gate)
 - 2026-08-01 05:40 — agent: pi (k3) (headless insert-mode limitation documented; Interactive Verification (tmux) and Environment Facts sections added)
+- 2026-08-03 01:15 — agent: pi (k3) (pkill -f self-match caution in Interactive Verification)
 
 # Testing Standards
 
@@ -51,6 +52,12 @@ tmux kill-session -t verify
 
 Every interactive bug in the 2026-08-01 hardening session was reproduced in
 tmux before fixing. Use it for DAP smoke, dialog flows, and layout checks.
+
+Caution when scripting process cleanup around tmux runs: `pkill -f`
+matches its own invoking shell whenever the pattern appears anywhere in
+your command string (`pkill -f 'dlv dap'` inside a script whose text
+mentions `dlv dap` kills the script itself — the block dies with no
+output). Kill by pidfile, or bracket the pattern: `pkill -f '[d]lv dap'`.
 
 ## Environment Facts (this machine)
 
