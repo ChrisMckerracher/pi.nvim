@@ -27,6 +27,7 @@ Applies to `lua/`, `plugin/`, `tests/`.
 16. Ensure buffers exist at render funnels. `append_lines`/`append_text` must `ensure_buf()`: features like inline edit fire before the panel has ever opened, and rendering into a nil buffer explodes in a vim.schedule error.
 17. Closing a window ≠ deleting a buffer. Sidebars that should disappear from the tabline need an explicit `nvim_buf_delete` on close (neo-tree's buffer otherwise lingers as a phantom tab).
 18. Insert-only surfaces type your leader chords. A prompt that is always-in-insert turns `Space e` into the text " e". Give mode-safe twins (Alt+key) and a filetype seam (e.g. `pi_prompt`) so the host config can bind app-level keys there without violating the plugin's boundaries.
+19. `:startinsert`/window switches called synchronously from a mapping callback land in the INPUT QUEUE, not in the current state — they apply only when the next keypress drains the queue. Symptom: the first `<leader>a` after Esc-from-prompt "does nothing", the second both applies the queued switch and types itself into the newly focused prompt. Fix: wrap switch+startinsert in `vim.schedule` (runs at the next event-loop pass, immediately and safely). Never fix this by scheduling the ESC-side handler — a stale scheduled callback can fire after the NEXT keypress and revert its work. Specs must await scheduled focus (`vim.wait` on the window), never assert it synchronously. Verified via tmux key-timing repro; headless cannot reproduce it (see testing standards → Interactive Verification).
 
 ## Project Layout
 

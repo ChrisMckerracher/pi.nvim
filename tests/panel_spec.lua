@@ -74,14 +74,19 @@ describe("panel", function()
   end)
 
   it("toggle: open+focus, focus from outside, close from inside (3-state)", function()
+    -- focus_input switches on the next event-loop pass (scheduled — see
+    -- panel.lua): await it rather than asserting synchronously.
+    local function await_input_focus()
+      vim.wait(2000, function() return vim.api.nvim_get_current_win() == panel.input_win end, 20)
+    end
     panel.close()
     vim.cmd "only"
     panel.toggle() -- closed → open + focus prompt
     assert.is_true(panel.is_open())
-    assert.equals(panel.input_win, vim.api.nvim_get_current_win())
+    await_input_focus()
     vim.cmd "wincmd h" -- step out to the editor
     panel.toggle() -- open + outside → focus prompt
-    assert.equals(panel.input_win, vim.api.nvim_get_current_win())
+    await_input_focus()
     panel.toggle() -- inside → close
     assert.is_false(panel.is_open())
   end)

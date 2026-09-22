@@ -115,7 +115,10 @@ function M.open()
     vim.keymap.set("n", key, M.focus_input, { buffer = chat_buf, desc = "Go to pi prompt" })
   end
 
-  vim.cmd "startinsert"
+  -- Scheduled like focus_input: open() runs inside the <leader>a mapping;
+  -- a synchronous startinsert from there sits in the input queue (applied
+  -- at the next keypress, in whatever window then holds focus).
+  vim.schedule(function() vim.cmd "startinsert" end)
 end
 
 --- Close both windows; buffers persist for the next open.
@@ -141,8 +144,16 @@ end
 
 function M.focus_input()
   if M.input_win and vim.api.nvim_win_is_valid(M.input_win) then
-    vim.api.nvim_set_current_win(M.input_win)
-    vim.cmd "startinsert"
+    -- Scheduled: switch+startinsert called synchronously from a mapping
+    -- (e.g. <leader>a refocus) lands in the INPUT QUEUE and does not apply
+    -- until the next keypress drains it — the user sees "nothing happened",
+    -- and the following key both triggers the queued switch and then lands
+    -- in the prompt as text. A scheduled callback runs at the next event
+    -- loop pass instead, immediately and safely.
+    vim.schedule(function()
+      vim.api.nvim_set_current_win(M.input_win)
+      vim.cmd "startinsert"
+    end)
   end
 end
 
