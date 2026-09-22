@@ -121,7 +121,8 @@ All defaults live under `<space>a` (`<leader>a`). Set `keymaps = false` in
 | `<C-j>` | Newline |
 | `@path` | File mention — `<C-x><C-o>` completes paths |
 | `<C-d>` / `<C-u>` | Scroll chat |
-| `<Esc>` | Close panel |
+| `<Esc>` | Back to editor (panel stays open; re-entering the prompt drops you back in insert) |
+| `q` | Close panel (normal mode — chat or prompt) |
 
 ## Commands
 
