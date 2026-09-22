@@ -87,7 +87,7 @@ function Host:start(cb)
     return
   end
   if cmd[2] and vim.fn.filereadable(cmd[2]) == 0 then
-    cb(false, "host not built: " .. cmd[2] .. " (run `make build` in the pi.nvim repo)")
+    cb(false, "host not built: " .. cmd[2] .. " (build it: npm ci --prefix host && npm run build --prefix host)")
     return
   end
 
