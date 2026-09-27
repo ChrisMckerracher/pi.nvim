@@ -51,7 +51,7 @@ local function format_count(n)
 end
 
 ---@return string
-local function input_title() return " send <CR> · newline <C-j> · scroll <PgUp/Dn> " end
+local function input_title() return " ^C stop · F2 sessions " end
 
 ---@return string
 local function chat_title()
@@ -76,6 +76,7 @@ local function dress_window(win)
   vim.wo[win].wrap = true
   vim.wo[win].linebreak = true
   vim.wo[win].winfixwidth = true
+  vim.wo[win].winfixbuf = true -- file openers must never replace panel-owned buffers
 end
 
 --- Open the panel: full-height split docked right (like neo-tree), prompt in
@@ -90,6 +91,7 @@ function M.open()
 
   vim.cmd "botright vsplit"
   M.chat_win = vim.api.nvim_get_current_win()
+  vim.wo[M.chat_win].winfixbuf = false -- new splits inherit the source window options
   vim.api.nvim_win_set_width(M.chat_win, current_width())
   vim.api.nvim_win_set_buf(M.chat_win, chat.ensure_buf())
   dress_window(M.chat_win)
@@ -100,6 +102,7 @@ function M.open()
 
   vim.cmd "belowright split"
   M.input_win = vim.api.nvim_get_current_win()
+  vim.wo[M.input_win].winfixbuf = false
   vim.api.nvim_win_set_height(M.input_win, input_height())
   vim.api.nvim_win_set_buf(M.input_win, input.ensure_buf())
   dress_window(M.input_win)
@@ -110,6 +113,7 @@ function M.open()
   -- typing bounces to the prompt.
   local chat_buf = vim.api.nvim_win_get_buf(M.chat_win)
   vim.keymap.set("n", "q", M.close, { buffer = chat_buf, desc = "Close pi panel" })
+  input.bind_controls(chat_buf)
   for _, key in ipairs { "i", "a", "o", "O", "<CR>" } do
     vim.keymap.set("n", key, M.focus_input, { buffer = chat_buf, desc = "Go to pi prompt" })
   end
@@ -117,7 +121,16 @@ function M.open()
   -- Scheduled like focus_input: open() runs inside the <leader>a mapping;
   -- a synchronous startinsert from there sits in the input queue (applied
   -- at the next keypress, in whatever window then holds focus).
-  vim.schedule(function() vim.cmd "startinsert" end)
+  local input_win = M.input_win
+  vim.schedule(function()
+    if
+      vim.api.nvim_win_is_valid(input_win)
+      and vim.api.nvim_get_current_win() == input_win
+      and vim.api.nvim_win_get_buf(input_win) == input.buf
+    then
+      vim.cmd "startinsert"
+    end
+  end)
 end
 
 --- Close both windows; buffers persist for the next open.
@@ -145,8 +158,10 @@ function M.focus_input()
     -- and the following key both triggers the queued switch and then lands
     -- in the prompt as text. A scheduled callback runs at the next event
     -- loop pass instead, immediately and safely.
+    local input_win = M.input_win
     vim.schedule(function()
-      vim.api.nvim_set_current_win(M.input_win)
+      if M.input_win ~= input_win or not vim.api.nvim_win_is_valid(input_win) then return end
+      vim.api.nvim_set_current_win(input_win)
       vim.cmd "startinsert"
     end)
   end
@@ -185,7 +200,9 @@ function M.start_spinner()
     90,
     vim.schedule_wrap(function()
       if M.input_win and vim.api.nvim_win_is_valid(M.input_win) then
-        vim.wo[M.input_win].winbar = (" %s %s… "):format(SPINNER_FRAMES[frame], message)
+        local width = vim.api.nvim_win_get_width(M.input_win)
+        local label = width >= 42 and (message .. "… · ") or ""
+        vim.wo[M.input_win].winbar = (" %s %s^C stop · F2 sessions "):format(SPINNER_FRAMES[frame], label)
         frame = (frame % #SPINNER_FRAMES) + 1
       end
     end)

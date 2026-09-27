@@ -22,3 +22,5 @@ Each design doc should cover:
 | [001-sdk-host-nvim-embedding.md](001-sdk-host-nvim-embedding.md) | Embed pi via SDK host + Lua frontend: architecture, protocol, diff review, phases |
 
 | [003-unnamed-buffers.md](003-unnamed-buffers.md) | Read and edit unnamed buffers through Neovim |
+
+| [004-panel-routing-and-controls.md](004-panel-routing-and-controls.md) | Protected file destinations and discoverable navigation/run/session controls |

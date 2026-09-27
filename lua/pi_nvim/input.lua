@@ -8,17 +8,33 @@ local M = {
   _cfg = nil,
   ---@type fun(text:string)|nil
   _send = nil,
-  ---@type { on_close: fun(), scroll: fun(direction:integer) }|nil
+  ---@type { on_close: fun(), abort: fun()|nil, sessions: fun()|nil, scroll: fun(direction:integer) }|nil
   _deps = nil,
 }
 
 ---@param cfg PiNvimConfig
 ---@param send_fn fun(text:string)
----@param deps { on_close: fun(), scroll: fun(direction:integer) }
+---@param deps { on_close: fun(), abort: fun()|nil, sessions: fun()|nil, scroll: fun(direction:integer) }
 function M.setup(cfg, send_fn, deps)
   M._cfg = cfg
   M._send = send_fn
   M._deps = deps
+end
+
+--- Shared panel-local controls, usable while typing or browsing the transcript.
+---@param buf integer
+function M.bind_controls(buf)
+  for _, mode in ipairs { "i", "n" } do
+    vim.keymap.set(mode, "<C-c>", function()
+      if M._deps and M._deps.abort then M._deps.abort() end
+    end, { buffer = buf, desc = "Stop pi response" })
+    vim.keymap.set(mode, "<F2>", function()
+      vim.cmd "stopinsert"
+      vim.schedule(function()
+        if M._deps and M._deps.sessions then M._deps.sessions() end
+      end)
+    end, { buffer = buf, desc = "Pi sessions: new or resume" })
+  end
 end
 
 ---@return integer
@@ -31,6 +47,7 @@ function M.ensure_buf()
   vim.bo[M.buf].swapfile = false
   vim.bo[M.buf].filetype = "pi_prompt" -- lets the host config bind app-level keys here
 
+  M.bind_controls(M.buf)
   local send = function() M.send() end
   vim.keymap.set("i", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })
   vim.keymap.set("n", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })

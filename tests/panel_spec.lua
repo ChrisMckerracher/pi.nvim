@@ -35,6 +35,26 @@ describe("panel", function()
     end
   end)
 
+  it("protects both panel windows from file opens", function()
+    input.set_text "keep my draft"
+    for _, win in ipairs { panel.input_win, panel.chat_win } do
+      local buf = vim.api.nvim_win_get_buf(win)
+      assert.is_true(vim.wo[win].winfixbuf)
+      vim.api.nvim_set_current_win(win)
+      local ok = pcall(vim.cmd, "edit README.md")
+      assert.is_false(ok)
+      assert.equals(buf, vim.api.nvim_win_get_buf(win))
+    end
+    assert.same({ "keep my draft" }, vim.api.nvim_buf_get_lines(input.buf, 0, -1, false))
+  end)
+
+  it("does not enter insert mode in another window after opening", function()
+    local editor = panel._last_editor_win
+    vim.api.nvim_set_current_win(editor)
+    vim.wait(30, function() return false end)
+    assert.equals(editor, vim.api.nvim_get_current_win())
+  end)
+
   it("scrolls by half pages without focus", function()
     vim.api.nvim_win_set_cursor(panel.chat_win, { 1, 0 })
     panel.scroll_chat(1)
@@ -107,10 +127,11 @@ describe("panel", function()
   end)
 
   it("shows a spinner in the prompt winbar while working, hints after", function()
+    panel.resize(24)
     panel.start_spinner()
     local shown = vim.wait(2000, function() return vim.wo[panel.input_win].winbar:find "Testing" ~= nil end, 50)
     assert.is_true(shown)
     panel.stop_spinner()
-    assert.equals(" send <CR> · newline <C-j> · scroll <PgUp/Dn> ", vim.wo[panel.input_win].winbar)
+    assert.equals(" ^C stop · F2 sessions ", vim.wo[panel.input_win].winbar)
   end)
 end)

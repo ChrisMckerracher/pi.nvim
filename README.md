@@ -114,6 +114,7 @@ All defaults live under `<space>a` (`<leader>a`). Set `keymaps = false` in
 | `<space>ak` | v | Inline edit selection with pi |
 | `<space>ad` | n | Review agent changes (diff) |
 | `<space>aD` | n | Reject agent changes (revert) |
+| `<space>aS` | n | Pi sessions menu |
 | `<space>an` | n | New session |
 | `<space>ar` | n | Resume session (picker includes CLI sessions) |
 | `<space>am` | n | Pick model |
@@ -129,6 +130,8 @@ All defaults live under `<space>a` (`<leader>a`). Set `keymaps = false` in
 | `@path` | File mention — `<C-x><C-o>` completes paths |
 | `<PageDown>` / `<PageUp>` | Scroll chat |
 | `<Esc>` | Leave insert/visual mode; keep focus in Pi |
+| `<C-c>` | Stop the running response (insert or normal mode; keeps your draft) |
+| `<F2>` | Sessions menu: new session or resume history |
 | `q` | Close panel (normal mode — chat or prompt) |
 
 The panel toggle (`<space>a`, `:Pi`, or `require("pi_nvim").toggle()`) closes an
@@ -137,11 +140,18 @@ prompt, then `i` to resume typing. Use `<C-w>k` to enter the transcript and
 normal Vim motions/yanks to copy text; `<C-w>h` returns to the editor. Press
 `q` or `<space>a` in normal mode to close Pi. Drafts persist when reopening.
 
+Pi's prompt and transcript are protected from file-buffer replacement. File-tree
+integrations should exclude `pi_prompt` and `pi_chat` (or all `nofile` buffers)
+from their destinations. `Ctrl-C stop` and `F2 sessions` stay visible in the
+prompt bar while Pi is working. Starting a new session clears the old transcript
+after the host confirms the switch; saved sessions remain available to resume.
+
 ## Commands
 
 | Command | Action |
 |---------|--------|
 | `:Pi` | Toggle panel |
+| `:PiSessions` | Open session actions |
 | `:PiNew` | New session |
 | `:PiResume` | Resume session picker |
 | `:PiReview` | Review agent changes |

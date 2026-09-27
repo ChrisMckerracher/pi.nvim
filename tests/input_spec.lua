@@ -15,6 +15,26 @@ describe("input", function()
     end
   end)
 
+  it("offers cancel and sessions without clearing a draft", function()
+    local stopped, menu = 0, 0
+    input.setup({}, function() end, {
+      on_close = function() end,
+      scroll = function() end,
+      abort = function() stopped = stopped + 1 end,
+      sessions = function() menu = menu + 1 end,
+    })
+    input.set_text "unfinished message"
+    for _, mode in ipairs { "i", "n" } do
+      for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(input.buf, mode)) do
+        if mapping.lhs == "<C-C>" or mapping.lhs == "<C-c>" then mapping.callback() end
+        if mapping.lhs == "<F2>" then mapping.callback() end
+      end
+    end
+    assert.equals(2, stopped)
+    assert.is_true(vim.wait(1000, function() return menu == 2 end))
+    assert.same({ "unfinished message" }, vim.api.nvim_buf_get_lines(input.buf, 0, -1, false))
+  end)
+
   it("locates completion start after @", function()
     vim.api.nvim_set_current_line "hello @tests/foo"
     vim.api.nvim_win_set_cursor(0, { 1, 16 }) -- cursor past end of line

@@ -145,6 +145,8 @@ function M.new_session()
         return
       end
       M._host.state = resp.data
+      chat.replay {}
+      diff.reset()
       chat.note "new session started"
       panel.update_winbar(M._host.state)
     end)
@@ -162,6 +164,9 @@ function M.resume_session()
     end)
   end)
 end
+
+--- F2 / :PiSessions: discoverable session actions.
+function M.session_menu() sessions.menu { new_session = M.new_session, resume_session = M.resume_session } end
 
 --- <leader>am: pick a model for the current session (session-scoped).
 function M.pick_model()
@@ -207,7 +212,17 @@ end
 
 --- Abort the in-flight agent run.
 function M.abort()
-  if M._host and M._host.job then M._host:request("abort", {}) end
+  if not M._host or not M._host.job then
+    vim.notify("pi: no active run to stop", vim.log.levels.INFO)
+    return
+  end
+  M._host:request("abort", {}, function(resp)
+    if not resp.success then
+      chat.show_error(resp.error or "could not stop pi")
+      return
+    end
+    chat.note "stop requested"
+  end)
 end
 
 ---@param opts table|nil
@@ -219,6 +234,8 @@ function M.setup(opts)
   context.setup()
   input.setup(cfg, M._send, {
     on_close = function() panel.close() end,
+    abort = M.abort,
+    sessions = M.session_menu,
     scroll = function(direction) panel.scroll_chat(direction) end,
   })
   panel.setup(cfg)
@@ -258,6 +275,7 @@ function M.setup(opts)
   end)
 
   vim.api.nvim_create_user_command("Pi", function() M.toggle() end, { desc = "Toggle pi sidebar" })
+  vim.api.nvim_create_user_command("PiSessions", M.session_menu, { desc = "Pi sessions: new or resume" })
   vim.api.nvim_create_user_command("PiNew", function() M.new_session() end, { desc = "New pi session" })
   vim.api.nvim_create_user_command("PiResume", function() M.resume_session() end, { desc = "Resume pi session" })
   vim.api.nvim_create_user_command("PiReview", function() M.review_changes() end, { desc = "Review pi changes" })
@@ -278,6 +296,7 @@ function M.setup(opts)
     map("v", "<leader>ak", M.inline_edit, { desc = "Inline edit with pi" })
     map("n", "<leader>ad", M.review_changes, { desc = "Review pi changes (diff)" })
     map("n", "<leader>aD", M.reject_change, { desc = "Reject pi changes (revert)" })
+    map("n", "<leader>aS", M.session_menu, { desc = "Pi sessions: new or resume" })
     map("n", "<leader>an", M.new_session, { desc = "New pi session" })
     map("n", "<leader>ar", M.resume_session, { desc = "Resume pi session" })
     map("n", "<leader>am", M.pick_model, { desc = "Pick pi model" })

@@ -354,7 +354,7 @@ function M.replay(messages)
       end
     end
   end
-  M.note "history replayed (text only)"
+  if #messages > 0 then M.note "history replayed (text only)" end
   M._restyle()
   M.scroll_to_bottom()
 end

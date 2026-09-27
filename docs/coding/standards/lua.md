@@ -11,6 +11,8 @@
 
 - 2026-09-27 — agent: Codex (native Escape preserves Pi focus)
 
+- 2026-09-27 — agent: Codex (protected panel buffers and visible run controls)
+
 # Lua Standards
 
 Applies to `lua/`, `plugin/`, `tests/`.
@@ -46,3 +48,5 @@ Applies to `lua/`, `plugin/`, `tests/`.
 21. Unnamed normal buffers are valid user code. Identify them by buffer id, never an empty filesystem path. In-memory agent edits must validate changedtick and remain undoable without assigning a filename.
 
 22. Escape in Pi uses native mode transitions and keeps window focus. Do not map it to focus_editor or panel.close. Prompt entry may start insert mode, but users can leave it to navigate and yank; transcript Escape also stays in place. Verify real keystrokes in tmux.
+
+23. Panel-owned split windows must set `winfixbuf` after assigning their buffers. New splits inherit window options: clear protection before assigning a new owned buffer, then restore it. File-tree/picker integrations must route to normal editor windows, never prompt or transcript windows. Keep cancellation controls visible during streaming, not only while idle.

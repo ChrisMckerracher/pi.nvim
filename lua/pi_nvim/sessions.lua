@@ -12,6 +12,22 @@ local function format_item(item)
   return ("%s %s  (%d)  %s"):format(current, when, item.messageCount or 0, title)
 end
 
+--- Open the session actions menu without booting the host until an action is chosen.
+---@param actions {new_session: fun(), resume_session: fun()}
+function M.menu(actions)
+  local choices = {
+    { label = "New session", run = actions.new_session },
+    { label = "Resume session…", run = actions.resume_session },
+  }
+  vim.ui.select(
+    choices,
+    { prompt = "Pi sessions", format_item = function(item) return item.label end },
+    function(choice)
+      if choice then choice.run() end
+    end
+  )
+end
+
 --- List sessions for the current project and switch to the chosen one.
 ---@param host PiHost
 ---@param on_switched fun() called after a successful switch (chat replay)
