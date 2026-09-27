@@ -1,15 +1,20 @@
 /**
- * context-broker.ts — host side of the editor-context sub-channel (ADR-005).
+ * context-broker.ts — request correlation for editor tools (ADR-005/006).
  *
  * The `editor_context` custom tool needs an answer from Neovim, which is the
  * *client* of this host — so the usual command/response direction is
  * inverted: the host emits `editor_context_request` and waits for a matching
  * `editor_context_response`. This broker owns the pending-request map and
- * the timeout so a missing/closed editor can never hang the agent.
+ * the timeout so a missing/closed editor can never hang the agent. Unnamed
+ * buffer operations share this correlation path through requestBuffer().
  */
 import { randomUUID } from "node:crypto";
 
-import type { EditorContextRequestEvent } from "./protocol.js";
+import type {
+  EditorContextRequestEvent,
+  EditorBufferRequestEvent,
+  EditorBufferOperation,
+} from "./protocol.js";
 
 export const EDITOR_CONTEXT_TIMEOUT_MS = 10_000;
 
@@ -20,17 +25,31 @@ export class EditorContextBroker {
   >();
 
   constructor(
-    private readonly emit: (event: EditorContextRequestEvent) => void,
+    private readonly emit: (event: EditorContextRequestEvent | EditorBufferRequestEvent) => void,
     private readonly timeoutMs: number = EDITOR_CONTEXT_TIMEOUT_MS,
   ) {}
 
   /** Emit a request and resolve with the editor's answer (or a timeout note). */
   request(): Promise<string> {
-    const requestId = randomUUID();
+    return this.send({ type: "editor_context_request", requestId: randomUUID() });
+  }
+
+  /** Read or edit an unnamed buffer, with an editor-enforced delivery deadline. */
+  requestBuffer(operation: EditorBufferOperation): Promise<string> {
+    return this.send({
+      ...operation,
+      type: "editor_buffer_request",
+      requestId: randomUUID(),
+      expiresAt: Date.now() + this.timeoutMs,
+    });
+  }
+
+  private send(event: EditorContextRequestEvent | EditorBufferRequestEvent): Promise<string> {
+    const requestId = event.requestId;
     return new Promise<string>((resolve) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
-        resolve("Editor context unavailable (request timed out).");
+        resolve("Error: editor request timed out; read current state before retrying.");
       }, this.timeoutMs);
       this.pending.set(requestId, {
         resolve: (context: string) => {
@@ -39,7 +58,7 @@ export class EditorContextBroker {
         },
         timer,
       });
-      this.emit({ type: "editor_context_request", requestId });
+      this.emit(event);
     });
   }
 

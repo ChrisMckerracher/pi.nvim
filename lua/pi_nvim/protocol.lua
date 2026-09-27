@@ -1,6 +1,6 @@
 --- Wire helpers mirroring host/src/protocol.ts (ADR-002). Keep in sync:
 --- bump M.version when the host's PROTOCOL_VERSION changes.
-local M = { version = 2 }
+local M = { version = 3 }
 
 --- Encode one command as a single LF-terminated JSONL record.
 ---@param obj table

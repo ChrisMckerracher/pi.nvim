@@ -93,6 +93,16 @@ async function dispatch(host: AgentHost, command: Command): Promise<Response | n
       }
       case "cycle_model":
         return reply(command, { success: true, data: await host.cycleModel() });
+      case "editor_buffer_response": {
+        if (typeof command.requestId !== "string" || typeof command.result !== "string") {
+          throw new Error("Invalid editor buffer response");
+        }
+        const delivered = host.resolveEditorContext(command.requestId, command.result);
+        return reply(command, {
+          success: delivered,
+          ...(delivered ? {} : { error: "Unknown or stale requestId" }),
+        });
+      }
       case "editor_context_response": {
         const delivered = host.resolveEditorContext(command.requestId, command.context);
         return reply(command, {

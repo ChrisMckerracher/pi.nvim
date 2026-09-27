@@ -8,6 +8,7 @@ local diff = require "pi_nvim.diff"
 local input = require "pi_nvim.input"
 local sessions = require "pi_nvim.sessions"
 local panel = require "pi_nvim.panel"
+local buffers = require "pi_nvim.buffers"
 
 local M = {}
 
@@ -96,6 +97,7 @@ end
 
 --- <leader>ak: Ctrl+K-style inline edit of the visual selection (warm session).
 function M.inline_edit()
+  local unnamed = buffers.is_unnamed(vim.api.nvim_get_current_buf())
   context.capture_visual()
   vim.ui.input({ prompt = "Inline edit instruction: " }, function(instruction)
     if not instruction or instruction == "" then
@@ -104,7 +106,10 @@ function M.inline_edit()
     end
     M._ensure_host(function()
       local message = context.compose("", M._cfg)
-      message = "[inline edit — modify the file directly with your edit tool]\n" .. instruction .. "\n\n" .. message
+      local directive = unnamed
+          and "[inline edit — read the unnamed buffer with editor_buffer, then edit it using its current changedtick; keep it unnamed and unsaved]"
+        or "[inline edit — modify the file directly with your edit tool]"
+      message = directive .. "\n" .. instruction .. "\n\n" .. message
       chat.echo_user("✂ " .. instruction, "+ selection")
       panel.open()
       local cmd = M._host:is_streaming() and "steer" or "prompt"
@@ -227,6 +232,12 @@ function M.setup(opts)
     diff.on_tool_end(evt)
     if evt.type == "editor_context_request" and type(evt.requestId) == "string" then
       M._answer_editor_context(evt.requestId)
+    elseif evt.type == "editor_buffer_request" and type(evt.requestId) == "string" then
+      local ok, result = pcall(buffers.request, evt)
+      host:notify("editor_buffer_response", {
+        requestId = evt.requestId,
+        result = ok and result or ("Error: " .. tostring(result)),
+      })
     elseif evt.type == "agent_start" then
       diff.reset()
       panel.start_spinner()

@@ -1,5 +1,5 @@
 /**
- * Protocol v2 — versioned JSONL framing between the Neovim Lua frontend and
+ * Protocol v3 — versioned JSONL framing between the Neovim Lua frontend and
  * this host. This file is the source of truth for both sides (ADR-002,
  * extended by ADR-005).
  *
@@ -12,12 +12,13 @@
  * `ForwardedEvent` — consumers narrow by `type`. Commands, responses, and
  * host-synthetic events are fully modeled below.
  *
+ * v3 changes (ADR-006): unnamed-buffer read/edit requests and responses.
  * v2 changes (ADR-005): session management commands, message history, and a
  * host-initiated request/response sub-channel (`editor_context_request` →
  * `editor_context_response`) for the agent-pull editor context tool.
  */
 
-export const PROTOCOL_VERSION = 2 as const;
+export const PROTOCOL_VERSION = 3 as const;
 
 // ---------------------------------------------------------------------------
 // Commands (nvim → host)
@@ -39,6 +40,7 @@ export type Command =
   | { id?: string; type: "cycle_model" }
   | { id?: string; type: "cycle_thinking" }
   | { id?: string; type: "editor_context_response"; requestId: string; context: string }
+  | { id?: string; type: "editor_buffer_response"; requestId: string; result: string }
   | { id?: string; type: "dispose" };
 
 // ---------------------------------------------------------------------------
@@ -103,8 +105,24 @@ export interface EditorContextRequestEvent {
   requestId: string;
 }
 
+/** Unnamed-buffer operation; edits require an exact, unique match and version. */
+export interface EditorBufferOperation {
+  action: "read" | "edit";
+  bufferId: number;
+  changedtick?: number;
+  oldText?: string;
+  newText?: string;
+}
+
+export interface EditorBufferRequestEvent extends EditorBufferOperation {
+  type: "editor_buffer_request";
+  requestId: string;
+  expiresAt: number;
+}
+
 /** Events the host synthesizes itself (not forwarded from the SDK). */
-export type HostSyntheticEvent = HostErrorEvent | EditorContextRequestEvent;
+export type HostSyntheticEvent =
+  HostErrorEvent | EditorContextRequestEvent | EditorBufferRequestEvent;
 
 /**
  * An agent event forwarded from the pi SDK. Shapes are owned by the SDK

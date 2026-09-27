@@ -1,6 +1,7 @@
 --- Editor context: capture (selection/file/diagnostics), @file expansion,
 --- and message composition. Push model per design/001 — the composed message
 --- is built here, client-side, so the host stays a dumb pipe.
+local buffers = require "pi_nvim.buffers"
 local M = {}
 
 ---@class PiPendingContext
@@ -22,6 +23,8 @@ M._last_code_buf = nil
 
 --- Track the last code buffer (called once from init setup).
 function M.setup()
+  local current = vim.api.nvim_get_current_buf()
+  if vim.bo[current].buftype == "" then M._last_code_buf = current end
   local group = vim.api.nvim_create_augroup("PiNvimContext", { clear = true })
   vim.api.nvim_create_autocmd("BufEnter", {
     group = group,
@@ -48,9 +51,12 @@ local function buf_cursor(buf)
 end
 
 --- cwd-relative when possible (":." falls back to absolute outside cwd).
----@param path string
+---@param buf integer
 ---@return string
-local function relpath(path) return vim.fn.fnamemodify(path, ":.") end
+local function buffer_path(buf)
+  if buffers.is_unnamed(buf) then return buffers.describe(buf) end
+  return vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ":.")
+end
 
 --- Capture the current visual selection into M.pending.
 --- Call from a visual-mode mapping; exits visual mode.
@@ -59,6 +65,7 @@ function M.capture_visual()
   local start_pos = vim.fn.getpos "v"
   local end_pos = vim.fn.getpos "."
   local bufnr = vim.api.nvim_get_current_buf()
+  if vim.bo[bufnr].buftype == "" then M._last_code_buf = bufnr end
 
   local start_line, start_col = start_pos[2], start_pos[3]
   local end_line, end_col = end_pos[2], end_pos[3]
@@ -84,7 +91,7 @@ function M.capture_visual()
 
   M.pending = {
     kind = "selection",
-    path = relpath(vim.api.nvim_buf_get_name(bufnr)),
+    path = buffer_path(bufnr),
     start_line = start_line,
     end_line = end_line,
     text = table.concat(lines, "\n"),
@@ -95,9 +102,10 @@ end
 --- Capture the whole current file into M.pending.
 function M.capture_file()
   local bufnr = vim.api.nvim_get_current_buf()
+  if vim.bo[bufnr].buftype == "" then M._last_code_buf = bufnr end
   M.pending = {
     kind = "file",
-    path = relpath(vim.api.nvim_buf_get_name(bufnr)),
+    path = buffer_path(bufnr),
     start_line = nil,
     end_line = nil,
     text = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), "\n"),
@@ -134,7 +142,7 @@ end
 ---@return string
 function M.editor_state()
   local bufnr = target_buf()
-  local path = relpath(vim.api.nvim_buf_get_name(bufnr))
+  local path = buffer_path(bufnr)
   local cursor = buf_cursor(bufnr)
   local lines = { ("file: %s, line %d"):format(path, cursor[1]) }
   local diags = diagnostics_summary(bufnr, 5)
@@ -147,13 +155,20 @@ end
 ---@return string
 function M.editor_state_full()
   local bufnr = target_buf()
-  local path = relpath(vim.api.nvim_buf_get_name(bufnr))
+  local path = buffer_path(bufnr)
   local cursor = buf_cursor(bufnr)
   local parts = {
     ("cwd: %s"):format(vim.uv.cwd() or "?"),
     ("current file: %s (line %d, col %d)"):format(path, cursor[1], cursor[2] + 1),
     ("filetype: %s"):format(vim.bo[bufnr].filetype ~= "" and vim.bo[bufnr].filetype or "none"),
   }
+  if buffers.is_unnamed(bufnr) then
+    parts[#parts + 1] = "buffer contents:\n```"
+      .. vim.bo[bufnr].filetype
+      .. "\n"
+      .. table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), "\n")
+      .. "\n```"
+  end
   if M.pending then
     local p = M.pending
     parts[#parts + 1] = ("pending selection: %s%s\n```%s\n%s\n```"):format(

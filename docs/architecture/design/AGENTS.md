@@ -20,3 +20,5 @@ Each design doc should cover:
 | Document | Purpose |
 |----------|---------|
 | [001-sdk-host-nvim-embedding.md](001-sdk-host-nvim-embedding.md) | Embed pi via SDK host + Lua frontend: architecture, protocol, diff review, phases |
+
+| [003-unnamed-buffers.md](003-unnamed-buffers.md) | Read and edit unnamed buffers through Neovim |

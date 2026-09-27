@@ -102,7 +102,7 @@ export class AgentHost {
           services,
           sessionManager: options.sessionManager,
           ...(options.sessionStartEvent ? { sessionStartEvent: options.sessionStartEvent } : {}),
-          customTools: [host.buildEditorContextTool()],
+          customTools: [host.buildEditorContextTool(), host.buildEditorBufferTool()],
         })),
         services,
         diagnostics: services.diagnostics,
@@ -132,13 +132,43 @@ export class AgentHost {
       name: "editor_context",
       label: "Editor Context",
       description:
-        "Get the user's current Neovim state: open file, cursor position, " +
+        "Get the user's current Neovim state: file or unnamed buffer, cursor position, " +
         "visual selection, and diagnostics. Use when the user refers to what " +
         "they are looking at, the current file, or the selected code.",
       parameters: Type.Object({}),
       execute: async () => {
         const context = await broker.request();
         return { content: [{ type: "text", text: context }], details: {} };
+      },
+    });
+  }
+
+  /** In-memory edits stay owned by Neovim, with stale-version protection. */
+  private buildEditorBufferTool() {
+    const broker = this.contextBroker;
+    return defineTool({
+      name: "editor_buffer",
+      label: "Editor Buffer",
+      description:
+        "Read or edit an unnamed Neovim code buffer exposed in editor context. " +
+        "Use this instead of filesystem tools for unnamed buffers. Read first to get " +
+        "text and changedtick; edit requires that changedtick and an exact unique oldText " +
+        "to replace with newText. Empty oldText only works on an empty buffer. " +
+        "Edits remain unsaved and can be undone in Neovim. If stale, read again.",
+      parameters: Type.Object({
+        action: Type.Union([Type.Literal("read"), Type.Literal("edit")]),
+        bufferId: Type.Integer({ minimum: 1 }),
+        changedtick: Type.Optional(Type.Integer({ minimum: 0 })),
+        oldText: Type.Optional(Type.String()),
+        newText: Type.Optional(Type.String()),
+      }),
+      execute: async (_toolCallId, params) => {
+        const result = await broker.requestBuffer(params);
+        return {
+          content: [{ type: "text", text: result }],
+          details: {},
+          isError: result.startsWith("Error:"),
+        };
       },
     });
   }

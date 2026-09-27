@@ -7,6 +7,8 @@
 
 - 2026-09-27 — agent: Codex (visibility toggle contract after keybinding correction)
 
+- 2026-09-27 12:55 — agent: Codex (unnamed buffer identity and guarded editing)
+
 # Lua Standards
 
 Applies to `lua/`, `plugin/`, `tests/`.
@@ -38,3 +40,5 @@ Applies to `lua/`, `plugin/`, `tests/`.
 - No third-party plugin dependencies — native buffers, extmarks, and `jobstart` only (ADR-004, design/001).
 
 20. Window visibility toggles must close an open surface regardless of focus. Keep explicit focus helpers separate; test toggling from the editor as well as from the surface itself.
+
+21. Unnamed normal buffers are valid user code. Identify them by buffer id, never an empty filesystem path. In-memory agent edits must validate changedtick and remain undoable without assigning a filename.

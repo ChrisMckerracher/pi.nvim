@@ -57,3 +57,38 @@ describe("context", function()
     vim.api.nvim_buf_delete(code_buf, { force = true })
   end)
 end)
+
+describe("unnamed editor context", function()
+  local context = require "pi_nvim.context"
+  local buf
+  before_each(function()
+    buf = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_set_current_buf(buf)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "local snippet = 42" })
+    context._last_code_buf = buf
+  end)
+  after_each(function()
+    context.pending = nil
+    context._last_code_buf = nil
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
+  it("labels unnamed file attachments with the buffer identity", function()
+    context.capture_file()
+    local message = context.compose("rewrite", { editor_context = true, max_context_file_lines = 200 })
+    assert.truthy(message:find("unnamed buffer " .. buf, 1, true))
+    assert.truthy(message:find("editor_buffer", 1, true))
+    assert.truthy(message:find("local snippet = 42", 1, true))
+  end)
+  it("includes unnamed content in the agent's context read", function()
+    local state = context.editor_state_full()
+    assert.truthy(state:find("unnamed buffer " .. buf, 1, true))
+    assert.truthy(state:find("local snippet = 42", 1, true))
+  end)
+  it("captures visual selections with a usable buffer identity", function()
+    vim.cmd "normal! ggV"
+    context.capture_visual()
+    local message = context.compose("rewrite", { editor_context = false, max_context_file_lines = 200 })
+    assert.truthy(message:find("unnamed buffer " .. buf, 1, true))
+    assert.truthy(message:find("local snippet = 42", 1, true))
+  end)
+end)

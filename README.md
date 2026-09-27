@@ -91,6 +91,13 @@ right — chat above (read-only, non-focusable), input below. Type, `<CR>`
 sends. Attach context with `@path` mentions or send a selection/file
 outright; review what the agent changed in a native diff view.
 
+Unnamed buffers work too: select code and use `<space>ak` to rewrite it, or
+`<space>as` to discuss it in chat. Pi reads and edits the buffer directly;
+it stays unnamed and unsaved. Use normal-mode `u` in that buffer to undo.
+If you change the buffer while Pi is thinking, stale edits are rejected so
+Pi must reread before applying them. File diff review (`<space>ad`) is for
+changes to files on disk.
+
 ## Keymaps
 
 All defaults live under `<space>a` (`<leader>a`). Set `keymaps = false` in
