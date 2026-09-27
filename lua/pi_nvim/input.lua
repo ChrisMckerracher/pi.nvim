@@ -1,6 +1,6 @@
 --- Input box: the prompt float at the bottom of the panel — the ONLY
---- focusable surface. <CR> sends (insert and normal mode), <C-j> inserts a
---- newline (native), <Esc> closes the panel, <C-d>/<C-u> scroll the chat.
+--- editable surface. <CR> sends (insert and normal mode), <C-j> inserts a
+--- newline (native), <Esc> enters normal mode in place, PageUp/PageDown scroll chat.
 local M = {
   ---@type integer|nil
   buf = nil,
@@ -8,13 +8,13 @@ local M = {
   _cfg = nil,
   ---@type fun(text:string)|nil
   _send = nil,
-  ---@type { on_escape: fun(), on_close: fun(), scroll: fun(direction:integer) }|nil
+  ---@type { on_close: fun(), scroll: fun(direction:integer) }|nil
   _deps = nil,
 }
 
 ---@param cfg PiNvimConfig
 ---@param send_fn fun(text:string)
----@param deps { on_escape: fun(), on_close: fun(), scroll: fun(direction:integer) }
+---@param deps { on_close: fun(), scroll: fun(direction:integer) }
 function M.setup(cfg, send_fn, deps)
   M._cfg = cfg
   M._send = send_fn
@@ -34,16 +34,7 @@ function M.ensure_buf()
   local send = function() M.send() end
   vim.keymap.set("i", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })
   vim.keymap.set("n", "<CR>", send, { buffer = M.buf, desc = "Send message to pi" })
-  -- The prompt is a text field, not a vim buffer: Esc never drops to normal
-  -- mode in place — it returns you to the editor (and re-entering the
-  -- prompt puts you back in insert via the autocmd below).
-  vim.keymap.set("i", "<Esc>", function()
-    vim.cmd "stopinsert"
-    if M._deps and M._deps.on_escape then M._deps.on_escape() end
-  end, { buffer = M.buf, desc = "Back to editor" })
-  vim.keymap.set("n", "<Esc>", function()
-    if M._deps and M._deps.on_escape then M._deps.on_escape() end
-  end, { buffer = M.buf, desc = "Back to editor" })
+  -- Keep native Escape: leave insert/visual mode without moving focus.
   vim.keymap.set("n", "q", function()
     if M._deps and M._deps.on_close then M._deps.on_close() end
   end, { buffer = M.buf, desc = "Close pi panel" })
@@ -58,7 +49,7 @@ function M.ensure_buf()
     end, { buffer = M.buf, desc = "Scroll pi chat up" })
   end
 
-  -- Default to insert, always: entering the prompt window means typing.
+  -- Entering the prompt starts typing; Escape can then enter normal mode in place.
   local group = vim.api.nvim_create_augroup("PiNvimPromptInsert", { clear = true })
   vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter" }, {
     group = group,

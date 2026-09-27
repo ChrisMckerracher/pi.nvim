@@ -87,7 +87,7 @@ press `<space>a` — the first open boots the host (~5s, once).
 ## Quickstart
 
 Open any project in Neovim and press `<space>a`. The panel docks to the
-right — chat above (read-only, non-focusable), input below. Type, `<CR>`
+right — chat above (read-only, navigable), input below. Type, `<CR>`
 sends. Attach context with `@path` mentions or send a selection/file
 outright; review what the agent changed in a native diff view.
 
@@ -127,13 +127,15 @@ All defaults live under `<space>a` (`<leader>a`). Set `keymaps = false` in
 | `<CR>` | Send (steers mid-run instead of queueing) |
 | `<C-j>` | Newline |
 | `@path` | File mention — `<C-x><C-o>` completes paths |
-| `<C-d>` / `<C-u>` | Scroll chat |
-| `<Esc>` | Back to editor (panel stays open; re-entering the prompt drops you back in insert) |
+| `<PageDown>` / `<PageUp>` | Scroll chat |
+| `<Esc>` | Leave insert/visual mode; keep focus in Pi |
 | `q` | Close panel (normal mode — chat or prompt) |
 
 The panel toggle (`<space>a`, `:Pi`, or `require("pi_nvim").toggle()`) closes an
-open panel regardless of focus. While typing a prompt, press Escape to return
-to the editor, then `<space>a` to close it. Drafts persist when reopening.
+open panel regardless of focus. Press Escape to navigate or select text in the
+prompt, then `i` to resume typing. Use `<C-w>k` to enter the transcript and
+normal Vim motions/yanks to copy text; `<C-w>h` returns to the editor. Press
+`q` or `<space>a` in normal mode to close Pi. Drafts persist when reopening.
 
 ## Commands
 

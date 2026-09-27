@@ -106,10 +106,9 @@ function M.open()
   vim.wo[M.input_win].winfixheight = true
   vim.wo[M.input_win].winbar = input_title()
 
-  -- The chat is a viewer: Esc returns to the editor, q closes the panel,
+  -- The chat is a viewer: native Escape keeps focus here, q closes the panel,
   -- typing bounces to the prompt.
   local chat_buf = vim.api.nvim_win_get_buf(M.chat_win)
-  vim.keymap.set("n", "<Esc>", M.focus_editor, { buffer = chat_buf, desc = "Back to editor" })
   vim.keymap.set("n", "q", M.close, { buffer = chat_buf, desc = "Close pi panel" })
   for _, key in ipairs { "i", "a", "o", "O", "<CR>" } do
     vim.keymap.set("n", key, M.focus_input, { buffer = chat_buf, desc = "Go to pi prompt" })

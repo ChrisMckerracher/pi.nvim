@@ -28,6 +28,13 @@ describe("panel", function()
 
   after_each(function() panel.close() end)
 
+  it("keeps native Escape in the transcript", function()
+    local buf = vim.api.nvim_win_get_buf(panel.chat_win)
+    for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+      assert.is_not.equals("<Esc>", mapping.lhs)
+    end
+  end)
+
   it("scrolls by half pages without focus", function()
     vim.api.nvim_win_set_cursor(panel.chat_win, { 1, 0 })
     panel.scroll_chat(1)

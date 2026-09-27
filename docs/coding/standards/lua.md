@@ -9,6 +9,8 @@
 
 - 2026-09-27 12:55 — agent: Codex (unnamed buffer identity and guarded editing)
 
+- 2026-09-27 — agent: Codex (native Escape preserves Pi focus)
+
 # Lua Standards
 
 Applies to `lua/`, `plugin/`, `tests/`.
@@ -21,7 +23,7 @@ Applies to `lua/`, `plugin/`, `tests/`.
 6. Keep side effects (job control, buffer/window mutation) in dedicated owner modules — `host.lua` owns the job process, `chat.lua` owns sidebar buffers — not scattered through domain logic.
 7. Never mutate UI state directly from a job callback's fast event context; route through `vim.schedule`.
 8. Use domain-specific helper names rather than generic `do` / `handle` patterns.
-9. Display buffers that hold transcripts, logs, or results are read-only: `modifiable = false`, with a `with_modifiable` wrapper for the owning module's own writes. Do not add `readonly` to scratch buffers — it W10-warns on our own writes. Editable buffers exist only where the user is meant to type. For panel surfaces, also make the WINDOW non-focusable (`nvim_open_win` with `focusable = false`) — the cursor cannot enter, which is what makes it feel like a panel rather than an editor.
+9. Display buffers that hold transcripts, logs, or results are read-only: `modifiable = false`, with a `with_modifiable` wrapper for the owning module's own writes. Do not add `readonly` to scratch buffers — it W10-warns on our own writes. Editable buffers exist only where the user is meant to type. Transcript splits remain focusable so users can navigate and copy text; read-only content does not imply a non-focusable window.
 10. Every long-running or async operation shows a visible affordance while in flight (spinner, winbar state, or status note) and a clear end state. Silent waiting is a bug.
 11. Virtual lines/text (extmarks) never wrap — anything longer than the window is silently cut off. Keep virtual content within the window width (truncate with an ellipsis); long content must be real buffer lines.
 12. Winbar and statusline strings are statusline-FORMAT strings, not plain text: a literal `%` (e.g. a context-percent `(34%)`) throws E542 "unbalanced groups". Build the display string, then `:gsub("%%", "%%%%")` before assigning.
@@ -42,3 +44,5 @@ Applies to `lua/`, `plugin/`, `tests/`.
 20. Window visibility toggles must close an open surface regardless of focus. Keep explicit focus helpers separate; test toggling from the editor as well as from the surface itself.
 
 21. Unnamed normal buffers are valid user code. Identify them by buffer id, never an empty filesystem path. In-memory agent edits must validate changedtick and remain undoable without assigning a filename.
+
+22. Escape in Pi uses native mode transitions and keeps window focus. Do not map it to focus_editor or panel.close. Prompt entry may start insert mode, but users can leave it to navigate and yank; transcript Escape also stays in place. Verify real keystrokes in tmux.

@@ -218,7 +218,6 @@ function M.setup(opts)
   chat.setup(cfg)
   context.setup()
   input.setup(cfg, M._send, {
-    on_escape = function() panel.focus_editor() end,
     on_close = function() panel.close() end,
     scroll = function(direction) panel.scroll_chat(direction) end,
   })

@@ -7,6 +7,14 @@ describe("input", function()
     vim.api.nvim_set_current_buf(input.buf)
   end)
 
+  it("leaves Escape to native mode transitions", function()
+    for _, mode in ipairs { "i", "n" } do
+      for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(input.buf, mode)) do
+        assert.is_not.equals("<Esc>", mapping.lhs)
+      end
+    end
+  end)
+
   it("locates completion start after @", function()
     vim.api.nvim_set_current_line "hello @tests/foo"
     vim.api.nvim_win_set_cursor(0, { 1, 16 }) -- cursor past end of line
