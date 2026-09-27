@@ -69,9 +69,7 @@ function M._send(text)
   end)
 end
 
---- <leader>a: uniform sidebar contract (see KEYBINDINGS.md) —
---- closed → open + focus prompt · open and outside → focus prompt ·
---- inside the panel → close. Focus switching is C-h/l like everywhere.
+--- <leader>a: open when closed, close when visible, regardless of focus.
 function M.toggle()
   panel.toggle()
   M._ensure_host(function() end)
@@ -264,7 +262,7 @@ function M.setup(opts)
 
   if cfg.keymaps then
     local map = vim.keymap.set
-    map("n", "<leader>a", M.toggle, { desc = "Pi panel (open/focus/close)" })
+    map("n", "<leader>a", M.toggle, { desc = "Toggle pi panel" })
     map("v", "<leader>as", M.send_selection, { desc = "Send selection to pi" })
     map("n", "<leader>af", M.send_file, { desc = "Send current file to pi" })
     map("v", "<leader>ak", M.inline_edit, { desc = "Inline edit with pi" })

@@ -101,7 +101,7 @@ All defaults live under `<space>a` (`<leader>a`). Set `keymaps = false` in
 
 | Key | Mode | Action |
 |-----|------|--------|
-| `<space>a` | n | Toggle panel (open/focus/close) |
+| `<space>a` | n | Toggle panel (open/close from any window) |
 | `<space>as` | v | Send selection to pi |
 | `<space>af` | n | Send current file to pi |
 | `<space>ak` | v | Inline edit selection with pi |
@@ -123,6 +123,10 @@ All defaults live under `<space>a` (`<leader>a`). Set `keymaps = false` in
 | `<C-d>` / `<C-u>` | Scroll chat |
 | `<Esc>` | Back to editor (panel stays open; re-entering the prompt drops you back in insert) |
 | `q` | Close panel (normal mode — chat or prompt) |
+
+The panel toggle (`<space>a`, `:Pi`, or `require("pi_nvim").toggle()`) closes an
+open panel regardless of focus. While typing a prompt, press Escape to return
+to the editor, then `<space>a` to close it. Drafts persist when reopening.
 
 ## Commands
 

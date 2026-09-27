@@ -5,6 +5,8 @@
 - 2026-07-18 05:00 — agent: pi (k3) (rule 12 added: statusline-format escaping — the E542 lesson)
 - 2026-08-01 05:40 — agent: pi (k3) (rules 13–18 added from the live-UX hardening session; narrative in [iteration/002](../../architecture/iteration/002-live-ux-hardening.md))
 
+- 2026-09-27 — agent: Codex (visibility toggle contract after keybinding correction)
+
 # Lua Standards
 
 Applies to `lua/`, `plugin/`, `tests/`.
@@ -34,3 +36,5 @@ Applies to `lua/`, `plugin/`, `tests/`.
 - Plugin modules live in `lua/pi_nvim/`; the auto-loaded entry is `plugin/pi_nvim.lua`.
 - Tests go in `tests/`, named `*_spec.lua` (plenary busted-style; harness arrives with the first real module).
 - No third-party plugin dependencies — native buffers, extmarks, and `jobstart` only (ADR-004, design/001).
+
+20. Window visibility toggles must close an open surface regardless of focus. Keep explicit focus helpers separate; test toggling from the editor as well as from the surface itself.

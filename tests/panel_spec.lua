@@ -73,22 +73,30 @@ describe("panel", function()
     panel.close()
   end)
 
-  it("toggle: open+focus, focus from outside, close from inside (3-state)", function()
-    -- focus_input switches on the next event-loop pass (scheduled — see
-    -- panel.lua): await it rather than asserting synchronously.
-    local function await_input_focus()
-      vim.wait(2000, function() return vim.api.nvim_get_current_win() == panel.input_win end, 20)
-    end
+  it("toggles closed from the editor and preserves the draft when reopened", function()
     panel.close()
     vim.cmd "only"
-    panel.toggle() -- closed → open + focus prompt
+    local editor = vim.api.nvim_get_current_win()
+    panel.toggle()
     assert.is_true(panel.is_open())
-    await_input_focus()
-    vim.cmd "wincmd h" -- step out to the editor
-    panel.toggle() -- open + outside → focus prompt
-    await_input_focus()
-    panel.toggle() -- inside → close
+    assert.equals(panel.input_win, vim.api.nvim_get_current_win())
+    input.set_text "unfinished prompt"
+    panel.focus_editor()
+    assert.equals(editor, vim.api.nvim_get_current_win())
+    panel.toggle()
     assert.is_false(panel.is_open())
+    panel.toggle()
+    assert.is_true(panel.is_open())
+    assert.same({ "unfinished prompt" }, vim.api.nvim_buf_get_lines(input.buf, 0, -1, false))
+  end)
+
+  it("toggles closed from either panel window", function()
+    for _, field in ipairs { "chat_win", "input_win" } do
+      panel.open()
+      vim.api.nvim_set_current_win(panel[field])
+      panel.toggle()
+      assert.is_false(panel.is_open())
+    end
   end)
 
   it("shows a spinner in the prompt winbar while working, hints after", function()

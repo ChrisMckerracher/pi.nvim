@@ -129,16 +129,12 @@ function M.close()
   M.chat_win, M.input_win = nil, nil
 end
 
+--- Toggle visibility regardless of which window currently has focus.
 function M.toggle()
-  if not M.is_open() then
-    M.open()
-    return
-  end
-  local cur = vim.api.nvim_get_current_win()
-  if cur == M.chat_win or cur == M.input_win then
+  if M.is_open() then
     M.close()
   else
-    M.focus_input()
+    M.open()
   end
 end
 
